@@ -9,6 +9,8 @@ readme = "README.md"
 python = "^3.12"
 typer = "^0.19.1"
 unidiff = "^0.7.5"
+python-debian = "^1.0.1"
+launchpadlib = "^2.1.0"
 
 [tool.poetry.scripts]
 sru_lint = "sru_lint.cli:app"
