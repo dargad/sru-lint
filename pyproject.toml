@@ -7,7 +7,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
+typer = "^0.19.1"
+unidiff = "^0.7.5"
 
+[tool.poetry.scripts]
+sru_lint = "sru_lint.cli:app"
 
 [build-system]
 requires = ["poetry-core"]
