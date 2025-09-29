@@ -1,3 +1,6 @@
+import re
+
+
 REVIEW_STATES = {"New", "Unapproved"}
 
 def parse_distributions_field(value: str) -> list[str]:
