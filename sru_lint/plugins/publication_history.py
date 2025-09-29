@@ -8,12 +8,12 @@ DEBIAN_CHANGELOG = "debian/changelog"
 
 class PublicationHistory(Plugin):
     """Plugin to validate publication history in the patch (implementation pending)."""
+
     def __init__(self):
         self._cachedir = "~/.launchpadlib/cache"
         self._launchpad = Launchpad.login_anonymously("check-version", "production", self._cachedir)
         self._ubuntu = self._launchpad.distributions["ubuntu"]
         self._archive = self._ubuntu.main_archive
-
 
     def process(self, patches):
         print("PublicationHistory")
@@ -40,4 +40,4 @@ class PublicationHistory(Plugin):
             found = True
 
         if not found:
-            print(f"❌ Version '{version_to_check}' of '{source_package}' was NOT found in publishing history.")
+            print(f"❌ Version '{version_to_check}' of '{package_name}' was NOT found in publishing history.")

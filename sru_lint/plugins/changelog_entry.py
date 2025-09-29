@@ -17,6 +17,13 @@ class ChangelogEntry(Plugin):
         ubuntu = launchpad.distributions["ubuntu"]
         archive = ubuntu.main_archive
 
+        for patch in patches:
+            for hunk in patch:
+                print(f"Processing hunk in file: {patch.path}")
+                if patch.path == DEBIAN_CHANGELOG:
+                    print(f"Found changelog entry in patch: {patch.path}")
+                    # Extract the content of the changelog from the hunk
+
         content = match_hunks(patches, make_filename_matcher(DEBIAN_CHANGELOG))
 
         for k in content:
