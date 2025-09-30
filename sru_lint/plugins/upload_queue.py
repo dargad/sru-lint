@@ -3,10 +3,9 @@ from os.path import expanduser
 from launchpadlib.launchpad import Launchpad
 from debian import changelog
 
-from sru_lint.patches import make_filename_matcher, match_hunks
+from sru_lint.patches import make_end_filename_matcher, match_hunks
 from sru_lint.plugin_base import Plugin
-from sru_lint.plugins.changelog_entry import DEBIAN_CHANGELOG
-from sru_lint.shared import parse_distributions_field, REVIEW_STATES
+from sru_lint.shared import DEBIAN_CHANGELOG, parse_distributions_field, REVIEW_STATES
 
 class UploadQueue(Plugin):
     def __init__(self):
@@ -19,7 +18,7 @@ class UploadQueue(Plugin):
 
     def process(self, patches):
         print("UploadQueue")
-        content = match_hunks(patches, make_filename_matcher(DEBIAN_CHANGELOG))
+        content = match_hunks(patches, make_end_filename_matcher(DEBIAN_CHANGELOG))
         for k in content:
             cl = changelog.Changelog(content[k])
             suites = parse_distributions_field(str(cl.distributions))

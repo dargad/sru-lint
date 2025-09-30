@@ -1,5 +1,7 @@
 import re
 
+DEBIAN_CHANGELOG = "debian/changelog"
+DEBIAN_PATCHES = "debian/patches/"
 
 REVIEW_STATES = {"New", "Unapproved"}
 

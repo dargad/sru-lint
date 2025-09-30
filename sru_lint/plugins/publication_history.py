@@ -1,10 +1,10 @@
-from sru_lint.patches import make_filename_matcher, match_hunks
+from sru_lint.patches import make_end_filename_matcher, match_hunks
 from sru_lint.plugin_base import Plugin
 
 from debian import changelog 
 from launchpadlib.launchpad import Launchpad
 
-DEBIAN_CHANGELOG = "debian/changelog"
+from sru_lint.shared import DEBIAN_CHANGELOG
 
 class PublicationHistory(Plugin):
     """Plugin to validate publication history in the patch (implementation pending)."""
@@ -18,7 +18,7 @@ class PublicationHistory(Plugin):
     def process(self, patches):
         print("PublicationHistory")
 
-        content = match_hunks(patches, make_filename_matcher(DEBIAN_CHANGELOG))
+        content = match_hunks(patches, make_end_filename_matcher(DEBIAN_CHANGELOG))
         for k in content:
             cl = changelog.Changelog(content[k])
             
