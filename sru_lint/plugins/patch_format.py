@@ -15,7 +15,8 @@ class PatchFormat(Plugin):
         print(f"Found {len(content)} patches in {DEBIAN_PATCHES}")
 
         for patch_path, patch_content in content.items():
-            self.check_format(patch_content, patch_path)
+            if not patch_path.endswith('/series'):
+                self.check_format(patch_content, patch_path)
 
     def check_format(self, patch_content, patch_path):
         print(f"Checking format of patch: {patch_path}")
