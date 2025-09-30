@@ -1,7 +1,22 @@
+from sru_lint.dep3_checker import check_dep3_compliance
+from sru_lint.patches import make_contains_filename_matcher, match_hunks
 from sru_lint.plugin_base import Plugin
+import re
+
+from sru_lint.shared import DEBIAN_PATCHES
 
 
 class PatchFormat(Plugin):
     """Plugin to ensure patch formatting standards (implementation pending)."""
     def process(self, patches):
         print("PatchFormat")
+
+        content = match_hunks(patches, make_contains_filename_matcher(DEBIAN_PATCHES))
+        print(f"Found {len(content)} patches in {DEBIAN_PATCHES}")
+
+        for patch_path, patch_content in content.items():
+            self.check_format(patch_content, patch_path)
+
+    def check_format(self, patch_content, patch_path):
+        print(f"Checking format of patch: {patch_path}")
+        print(f"{check_dep3_compliance(patch_content)}")
