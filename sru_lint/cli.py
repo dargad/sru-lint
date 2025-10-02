@@ -12,24 +12,33 @@ def check(
         "-", metavar="FILE", help="File to read, or '-' for stdin"
     ),
     modules: Optional[list[str]] = typer.Option(
-        ["all"], "--modules", "-m", help="Only run the specified module(s). Default is 'all'. Can be used multiple times"
+        ["all"], "--modules", "-m", 
+        help="Only run the specified module(s). Default is 'all'. Can be specified as comma-separated list or multiple times"
     ),
 ):
     """
     Run the linter on the specified patch.
     """
-
+    # Process comma-separated module names
+    expanded_modules = []
+    for module_item in modules:
+        # Split by comma and strip whitespace
+        expanded_modules.extend([m.strip() for m in module_item.split(',')])
+    
+    # Remove empty items
+    expanded_modules = [m for m in expanded_modules if m]
+    
     patchset = unidiff.PatchSet(infile.read())
 
     pm = PluginManager()
     plugins = pm.load_plugins()
     
     # Filter plugins based on modules
-    if "all" not in modules:
+    if "all" not in expanded_modules:
         # Filter plugins by their symbolic names
-        filtered_plugins = [p for p in plugins if p.__symbolic_name__ in modules]
+        filtered_plugins = [p for p in plugins if p.__symbolic_name__ in expanded_modules]
         if not filtered_plugins:
-            typer.echo(f"Warning: No plugins found matching the specified modules: {', '.join(modules)}")
+            typer.echo(f"Warning: No plugins found matching the specified modules: {', '.join(expanded_modules)}")
             typer.echo("Available modules:")
             for plugin in plugins:
                 typer.echo(f"- {plugin.__symbolic_name__}")
