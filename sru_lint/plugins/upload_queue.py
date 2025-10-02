@@ -8,6 +8,8 @@ from sru_lint.plugin_base import Plugin
 from sru_lint.shared import DEBIAN_CHANGELOG, parse_distributions_field, REVIEW_STATES
 
 class UploadQueue(Plugin):
+    """Checks if the version in debian/changelog is already in the upload queue for review."""
+
     def __init__(self):
         cache_dir = expanduser("~/.cache/launchpadlib-devel")
         self._lp = Launchpad.login_anonymously(

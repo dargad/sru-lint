@@ -10,7 +10,10 @@ app = typer.Typer(help="punch - a CLI tool for managing your tasks")
 def check(
     infile: typer.FileText = typer.Argument(
         "-", metavar="FILE", help="File to read, or '-' for stdin"
-    )
+    ),
+    modules: Optional[list[str]] = typer.Option(
+        ["all"], "--modules", "-m", help="Only run the specified module(s). Default is 'all'. Can be used multiple times"
+    ),
 ):
     """
     Run the linter on the specified patch.
@@ -20,9 +23,44 @@ def check(
 
     pm = PluginManager()
     plugins = pm.load_plugins()
-
+    
+    # Filter plugins based on modules
+    if "all" not in modules:
+        # Filter plugins by their symbolic names
+        filtered_plugins = [p for p in plugins if p.__symbolic_name__ in modules]
+        if not filtered_plugins:
+            typer.echo(f"Warning: No plugins found matching the specified modules: {', '.join(modules)}")
+            typer.echo("Available modules:")
+            for plugin in plugins:
+                typer.echo(f"- {plugin.__symbolic_name__}")
+            return
+        plugins = filtered_plugins
+    
     for plugin in plugins:
         plugin.process(patchset)
+
+
+@app.command()
+def plugins():
+    """
+    List all available plugins.
+    """
+    typer.echo("Available plugins:")
+    
+    pm = PluginManager()
+    plugins = pm.load_plugins()
+    
+    if not plugins:
+        typer.echo("No plugins found.")
+        return
+    
+    for plugin in plugins:
+        # Get the class name
+        plugin_name = plugin.__symbolic_name__
+        # Get the docstring (description)
+        plugin_description = plugin.__class__.__doc__ or "No description available"
+        # Print formatted output
+        typer.echo(f"- {plugin_name}: {plugin_description}")
 
 
 @app.command()

@@ -7,7 +7,8 @@ from sru_lint.shared import DEBIAN_PATCHES
 
 
 class PatchFormat(Plugin):
-    """Plugin to ensure patch formatting standards (implementation pending)."""
+    """Checks the compliance of the patches in debian/patches to the DEP-3."""
+
     def process(self, patches):
         print("PatchFormat")
 

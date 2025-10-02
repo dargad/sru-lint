@@ -7,7 +7,7 @@ from launchpadlib.launchpad import Launchpad
 from sru_lint.shared import DEBIAN_CHANGELOG
 
 class PublicationHistory(Plugin):
-    """Plugin to validate publication history in the patch (implementation pending)."""
+    """Validates whether the version in debian/changelog has been already published in Ubuntu."""
 
     def __init__(self):
         self._cachedir = "~/.launchpadlib/cache"

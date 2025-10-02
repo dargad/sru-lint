@@ -7,7 +7,8 @@ from launchpadlib.launchpad import Launchpad
 from sru_lint.shared import DEBIAN_CHANGELOG
 
 class ChangelogEntry(Plugin):
-    """Plugin to check for changelog entry in the patch (implementation pending)."""
+    """Checks the changelog entry."""
+
     def process(self, patches):
         print("ChangelogEntry")
 
