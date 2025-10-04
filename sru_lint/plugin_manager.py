@@ -28,7 +28,7 @@ class PluginManager:
 
         # Inspect all submodules for Plugin subclasses
         for module_name, module in list(sys.modules.items()):
-            if module_name.startswith(sru_lint.plugins.__name__ + "."):
+            if module_name.startswith(sru_lint.plugins.__name__ + "." if hasattr(sru_lint.plugins, "__name__") else "sru_lint.plugins."):
                 for _, obj in inspect.getmembers(module, inspect.isclass):
                     try:
                         if issubclass(obj, Plugin) and obj is not Plugin and obj not in discovered_classes:
