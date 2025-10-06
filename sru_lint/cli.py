@@ -63,13 +63,18 @@ def plugins():
         typer.echo("No plugins found.")
         return
     
+    # Calculate the maximum length of plugin names for alignment
+    max_name_length = max(len(plugin.__symbolic_name__) for plugin in plugins)
+    
     for plugin in plugins:
         # Get the class name
         plugin_name = plugin.__symbolic_name__
         # Get the docstring (description)
         plugin_description = plugin.__class__.__doc__ or "No description available"
-        # Print formatted output
-        typer.echo(f"- {plugin_name}: {plugin_description}")
+        # Clean up the description (remove leading/trailing whitespace and newlines)
+        plugin_description = " ".join(plugin_description.split())
+        # Print formatted output with aligned descriptions
+        typer.echo(f"- {plugin_name:<{max_name_length}} : {plugin_description}")
 
 
 @app.command()
