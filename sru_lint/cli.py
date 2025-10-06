@@ -50,6 +50,9 @@ def check(
         feedback.extend(plugin.process(patchset))
     
     print(f"Collected {len(feedback)} feedback items from {len(plugins)} plugin(s).")
+    print("Feedback:")
+    for item in feedback:
+        print(f"- {item.message} (Severity: {item.severity})")
 
 
 @app.command()

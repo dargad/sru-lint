@@ -69,9 +69,9 @@ class ChangelogEntry(Plugin):
                             message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
                             span=SourceSpan(
                                 path=patched_file.path,
-                                start_line=1,
+                                start_line=patched_file[0].target_start,
                                 start_col=1,
-                                end_line=1,
+                                end_line=patched_file[0].target_start + patched_file[0].target_length,
                                 end_col=1,
                                 start_offset=0,
                                 end_offset=0

@@ -80,6 +80,7 @@ class LaunchpadHelper:
             return False
         
         for task in bug.bug_tasks:
+            print(f"Checking task: package={task.target.name}, bug_target_name={task.bug_target_name}")
             # Normalize distribution names for comparison
             package_match = task.target.name == package
             # Check if distribution is in bug_target_name (case-insensitive)
