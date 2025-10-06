@@ -1,9 +1,9 @@
-from sru_lint.dep3_checker import check_dep3_compliance
-from sru_lint.patches import combine_added_lines, make_contains_filename_matcher, match_hunks
-from sru_lint.plugin_base import Plugin
+from sru_lint.common.dep3_checker import check_dep3_compliance
+from sru_lint.common.patches import combine_added_lines, make_contains_filename_matcher, match_hunks
+from sru_lint.plugins.plugin_base import Plugin
 import re
 
-from sru_lint.shared import DEBIAN_PATCHES
+from sru_lint.common.shared import DEBIAN_PATCHES
 
 
 class PatchFormat(Plugin):

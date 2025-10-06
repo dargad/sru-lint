@@ -1,10 +1,10 @@
-from sru_lint.patches import combine_added_lines, make_end_filename_matcher, match_hunks
-from sru_lint.plugin_base import Plugin
+from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
+from sru_lint.plugins.plugin_base import Plugin
 
 from debian import changelog 
 from launchpadlib.launchpad import Launchpad
 
-from sru_lint.shared import DEBIAN_CHANGELOG
+from sru_lint.common.shared import DEBIAN_CHANGELOG
 
 class PublicationHistory(Plugin):
     """Validates whether the version in debian/changelog has been already published in Ubuntu."""
@@ -23,7 +23,7 @@ class PublicationHistory(Plugin):
         print("PublicationHistory")
 
         content = combine_added_lines(patched_file)
-        
+
         for k in content:
             cl = changelog.Changelog(content[k])
             

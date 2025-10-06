@@ -1,10 +1,10 @@
-from sru_lint.plugin_base import Plugin
-from sru_lint.patches import combine_added_lines, make_end_filename_matcher, match_hunks
+from sru_lint.plugins.plugin_base import Plugin
+from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
 
 from debian import changelog
 from launchpadlib.launchpad import Launchpad
 
-from sru_lint.shared import DEBIAN_CHANGELOG
+from sru_lint.common.shared import DEBIAN_CHANGELOG
 
 class ChangelogEntry(Plugin):
     """Checks the changelog entry."""
@@ -14,6 +14,14 @@ class ChangelogEntry(Plugin):
         self.add_file_pattern("debian/changelog")
 
     def process_file(self, patched_file):
+        """
+        Checks done in the changelog entry:
+        - Check if the distribution is valid (e.g., 'jammy', 'jammy-proposed', etc.)
+        - Check if the version number is valid.
+        - If there is an LP bug number mentioned (LP: #123456), check if
+          the bug exists and if it is targeted at the correct package and
+          distribution.
+        """
         print("ChangelogEntry")
 
         cachedir = "~/.launchpadlib/cache"

@@ -3,9 +3,9 @@ from os.path import expanduser
 from launchpadlib.launchpad import Launchpad
 from debian import changelog
 
-from sru_lint.patches import combine_added_lines, make_end_filename_matcher, match_hunks
-from sru_lint.plugin_base import Plugin
-from sru_lint.shared import DEBIAN_CHANGELOG, parse_distributions_field, REVIEW_STATES
+from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
+from sru_lint.common.shared import DEBIAN_CHANGELOG, parse_distributions_field, REVIEW_STATES
+from sru_lint.plugins.plugin_base import Plugin
 
 class UploadQueue(Plugin):
     """Checks if the version in debian/changelog is already in the upload queue for review."""
