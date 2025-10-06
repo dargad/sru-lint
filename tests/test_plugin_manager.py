@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from sru_lint.plugin_manager import PluginManager
-from sru_lint.plugin_base import Plugin
+from sru_lint.plugins.plugin_base import Plugin
 import types
 import sys
 

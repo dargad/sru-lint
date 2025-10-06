@@ -126,8 +126,10 @@ class TestCLI(unittest.TestCase):
         
         self.assertEqual(result.exit_code, 0)
         self.assertIn('Available plugins:', result.stdout)
-        self.assertIn('test-plugin1: Test plugin description', result.stdout)
-        self.assertIn('test-plugin2: No description available', result.stdout)
+        # Check for aligned output - both plugin names should be padded to the same width
+        # The longer name 'test-plugin2' (12 chars) determines the alignment
+        self.assertIn('test-plugin1 : Test plugin description', result.stdout)
+        self.assertIn('test-plugin2 : No description available', result.stdout)
 
     @patch('sru_lint.cli.PluginManager')
     def test_plugins_command_no_plugins(self, mock_plugin_manager):
