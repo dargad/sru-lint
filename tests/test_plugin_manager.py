@@ -6,20 +6,32 @@ import types
 import sys
 
 class DummyPlugin(Plugin):
-    def process(self, patches):
-        return super().process(patches)
+    def register_file_patterns(self):
+        self.add_file_pattern("*.txt")
+    
+    def process_file(self, patched_file):
+        pass
 
 class AnotherPlugin(Plugin):
-    def process(self, patches):
-        return super().process(patches)
+    def register_file_patterns(self):
+        self.add_file_pattern("*.py")
+    
+    def process_file(self, patched_file):
+        pass
 
 class ThirdPlugin(Plugin):
-    def process(self, patches):
-        return super().process(patches)
+    def register_file_patterns(self):
+        self.add_file_pattern("*.md")
+    
+    def process_file(self, patched_file):
+        pass
 
 class NestedDummyPlugin(Plugin):
-    def process(self, patches):
-        return super().process(patches)
+    def register_file_patterns(self):
+        self.add_file_pattern("debian/changelog")
+    
+    def process_file(self, patched_file):
+        pass
 
 class NotAPlugin:
     """This is not a Plugin subclass"""
