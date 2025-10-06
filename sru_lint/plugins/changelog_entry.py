@@ -1,5 +1,5 @@
 from sru_lint.plugin_base import Plugin
-from sru_lint.patches import make_end_filename_matcher, match_hunks
+from sru_lint.patches import combine_added_lines, make_end_filename_matcher, match_hunks
 
 from debian import changelog
 from launchpadlib.launchpad import Launchpad
@@ -9,7 +9,11 @@ from sru_lint.shared import DEBIAN_CHANGELOG
 class ChangelogEntry(Plugin):
     """Checks the changelog entry."""
 
-    def process(self, patches):
+    def register_file_patterns(self):
+        """Register that we want to check debian/changelog files."""
+        self.add_file_pattern("debian/changelog")
+
+    def process_file(self, patched_file):
         print("ChangelogEntry")
 
         cachedir = "~/.launchpadlib/cache"
@@ -17,14 +21,8 @@ class ChangelogEntry(Plugin):
         ubuntu = launchpad.distributions["ubuntu"]
         archive = ubuntu.main_archive
 
-        for patch in patches:
-            for hunk in patch:
-                print(f"Processing hunk in file: {patch.path}")
-                if patch.path == DEBIAN_CHANGELOG:
-                    print(f"Found changelog entry in patch: {patch.path}")
-                    # Extract the content of the changelog from the hunk
-
-        content = match_hunks(patches, make_end_filename_matcher(DEBIAN_CHANGELOG))
+        content = combine_added_lines(patched_file)
+        print(f"Content: {content}")
 
         for k in content:
             cl = changelog.Changelog(content[k])

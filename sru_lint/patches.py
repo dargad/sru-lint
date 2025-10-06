@@ -26,3 +26,12 @@ def match_hunks(patches, filename_predicate):
             )
             output[patch.source_file] = content
     return output
+
+def combine_added_lines(patched_file):
+    content = ''.join(
+        line.value
+        for hunk in patched_file
+        for line in hunk
+        if line.is_added
+    )
+    return {patched_file.path: content}

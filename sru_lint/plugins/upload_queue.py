@@ -3,7 +3,7 @@ from os.path import expanduser
 from launchpadlib.launchpad import Launchpad
 from debian import changelog
 
-from sru_lint.patches import make_end_filename_matcher, match_hunks
+from sru_lint.patches import combine_added_lines, make_end_filename_matcher, match_hunks
 from sru_lint.plugin_base import Plugin
 from sru_lint.shared import DEBIAN_CHANGELOG, parse_distributions_field, REVIEW_STATES
 
@@ -18,9 +18,15 @@ class UploadQueue(Plugin):
         self._ubuntu = self._lp.distributions["ubuntu"]
         self._archive = self._ubuntu.main_archive
 
-    def process(self, patches):
+    def register_file_patterns(self):
+        """Register that we want to check debian/changelog files."""
+        self.add_file_pattern("debian/changelog")
+
+    def process_file(self, patched_file):
         print("UploadQueue")
-        content = match_hunks(patches, make_end_filename_matcher(DEBIAN_CHANGELOG))
+
+        content = combine_added_lines(patched_file)
+        
         for k in content:
             cl = changelog.Changelog(content[k])
             suites = parse_distributions_field(str(cl.distributions))
