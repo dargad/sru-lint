@@ -1,13 +1,17 @@
 from sru_lint.plugins.plugin_base import Plugin
-from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
+from sru_lint.common.patches import combine_added_lines
+from sru_lint.common.launchpad_helper import LaunchpadHelper
 
 from debian import changelog
-from launchpadlib.launchpad import Launchpad
 
-from sru_lint.common.shared import DEBIAN_CHANGELOG
 
 class ChangelogEntry(Plugin):
     """Checks the changelog entry."""
+
+    def __init__(self):
+        """Initialize the plugin and Launchpad helper."""
+        super().__init__()
+        self.lp_helper = LaunchpadHelper()
 
     def register_file_patterns(self):
         """Register that we want to check debian/changelog files."""
@@ -24,28 +28,25 @@ class ChangelogEntry(Plugin):
         """
         print("ChangelogEntry")
 
-        cachedir = "~/.launchpadlib/cache"
-        launchpad = Launchpad.login_anonymously("check-version", "production", cachedir)
-        ubuntu = launchpad.distributions["ubuntu"]
-        archive = ubuntu.main_archive
-
         content = combine_added_lines(patched_file)
-        print(f"Content: {content}")
 
         for k in content:
             cl = changelog.Changelog(content[k])
             print(f"{cl.get_package()}:{cl.distributions}:{cl.full_version}")
             print(f"Author: {cl.author} Date: {cl.date}")
 
-            lpbugs = self.search_for_lpbug(str(cl))
+            # Extract LP bug numbers using the helper
+            lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
 
             if lpbugs:
                 for lpbug in lpbugs:
                     print(f"LP Bug: LP: #{lpbug}")
-                    # Search Launchpad for the bug and check targeting
-                    bug = launchpad.bugs[int(lpbug)]
+                    
+                    # Get bug tasks using the helper
+                    bug_tasks = self.lp_helper.get_bug_tasks(lpbug)
+                    
                     targeted = False
-                    for task in bug.bug_tasks:
+                    for task in bug_tasks:
                         print(f"  Task: {task.target.name} / {task.bug_target_name} / {task.status}")
                         # Normalize distribution names for comparison
                         package_match = task.target.name == cl.get_package()
@@ -54,15 +55,11 @@ class ChangelogEntry(Plugin):
                         if package_match and dist_match:
                             targeted = True
                             print(f"Bug LP: #{lpbug} is targeted at {cl.get_package()} and {cl.distributions}")
+                    
                     if not targeted:
                         print(f"Bug {lpbug} is NOT targeted at {cl.get_package()} and {cl.distributions}")
-
-
-    def search_for_lpbug(self, changelog: str):
-        import re
-        print("Searching for LP bug number in the changelog")
-        matches = re.findall(r"LP:\s*#(\d+)", changelog)
-        if matches:
-            print(f"Found LP bug numbers: {', '.join(matches)}")
-            return matches
-        return None
+                    
+                    # Alternative: Use the helper's convenience method
+                    # is_targeted = self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions)
+                    # if not is_targeted:
+                    #     print(f"Bug {lpbug} is NOT targeted at {cl.get_package()} and {cl.distributions}")
