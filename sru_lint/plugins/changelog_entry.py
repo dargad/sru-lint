@@ -1,18 +1,12 @@
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.patches import combine_added_lines
-from sru_lint.common.launchpad_helper import LaunchpadHelper
 
 from debian import changelog
 
 
 class ChangelogEntry(Plugin):
     """Checks the changelog entry."""
-
-    def __init__(self):
-        """Initialize the plugin and Launchpad helper."""
-        super().__init__()
-        self.lp_helper = LaunchpadHelper()
 
     def register_file_patterns(self):
         """Register that we want to check debian/changelog files."""
@@ -69,9 +63,9 @@ class ChangelogEntry(Plugin):
                             message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
                             span=SourceSpan(
                                 path=patched_file.path,
-                                start_line=patched_file[0].target_start,
+                                start_line=1,
                                 start_col=1,
-                                end_line=patched_file[0].target_start + patched_file[0].target_length,
+                                end_line=1,
                                 end_col=1,
                                 start_offset=0,
                                 end_offset=0

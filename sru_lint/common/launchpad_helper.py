@@ -190,3 +190,19 @@ class LaunchpadHelper:
         """
         matches = re.findall(r"LP:\s*#(\d+)", text)
         return [int(match) for match in matches]
+
+
+# Create a single global instance
+_launchpad_helper = None
+
+def get_launchpad_helper() -> LaunchpadHelper:
+    """
+    Get the global LaunchpadHelper instance.
+    
+    Returns:
+        The singleton LaunchpadHelper instance
+    """
+    global _launchpad_helper
+    if _launchpad_helper is None:
+        _launchpad_helper = LaunchpadHelper()
+    return _launchpad_helper

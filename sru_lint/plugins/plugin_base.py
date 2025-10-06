@@ -16,8 +16,11 @@ class Plugin(ABC):
             cls.__symbolic_name__ = cls._generate_symbolic_name(cls.__name__)
 
     def __init__(self):
-        """Initialize the plugin with its file patterns."""
+        """Initialize the plugin with its file patterns and Launchpad helper."""
+        from sru_lint.common.launchpad_helper import get_launchpad_helper
+        
         self._file_patterns: Set[str] = set()
+        self.lp_helper = get_launchpad_helper()
         self.register_file_patterns()
 
     @staticmethod
@@ -96,7 +99,7 @@ class Plugin(ABC):
             # Check if this plugin handles this file
             if self.matches_file(filepath):
                 file_feedback = self.process_file(patched_file)
-                feedback.extend(file_feedback)
+                feedback.extend(file_feedback if file_feedback else [])
         
         return feedback
 
@@ -111,5 +114,8 @@ class Plugin(ABC):
         Args:
             patched_file: A PatchedFile object from unidiff representing the file
                          with all its hunks and changes
+                         
+        Returns:
+            List of FeedbackItem objects representing issues found in the file
         """
         raise NotImplementedError("Subclasses must implement process_file()")
