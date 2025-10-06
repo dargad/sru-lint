@@ -84,13 +84,21 @@ class Plugin(ABC):
         
         Args:
             patches: PatchSet object from unidiff containing all patches
+            
+        Returns:
+            List of FeedbackItem objects from all processed files
         """
+        feedback = []
+        
         for patched_file in patches:
             filepath = patched_file.path
             
             # Check if this plugin handles this file
             if self.matches_file(filepath):
-                self.process_file(patched_file)
+                file_feedback = self.process_file(patched_file)
+                feedback.extend(file_feedback)
+        
+        return feedback
 
     @abstractmethod
     def process_file(self, patched_file):

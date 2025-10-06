@@ -45,8 +45,11 @@ def check(
             return
         plugins = filtered_plugins
     
+    feedback = []
     for plugin in plugins:
-        plugin.process(patchset)
+        feedback.extend(plugin.process(patchset))
+    
+    print(f"Collected {len(feedback)} feedback items from {len(plugins)} plugin(s).")
 
 
 @app.command()

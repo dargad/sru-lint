@@ -3,7 +3,7 @@ Helper module for Launchpad integration.
 Provides cached Launchpad connection and utility functions.
 """
 from launchpadlib.launchpad import Launchpad
-from typing import Optional, List
+from typing import Optional, List, Set
 import re
 
 
@@ -12,6 +12,7 @@ class LaunchpadHelper:
     
     _instance: Optional['LaunchpadHelper'] = None
     _launchpad: Optional[Launchpad] = None
+    _valid_distributions: Optional[Set[str]] = None
     
     def __new__(cls):
         if cls._instance is None:
@@ -117,6 +118,63 @@ class LaunchpadHelper:
         except Exception as e:
             print(f"Error fetching series '{series_name}': {e}")
             return None
+    
+    def get_valid_distributions(self, include_pockets: bool = True) -> Set[str]:
+        """
+        Get a set of valid Ubuntu distribution names.
+        
+        This method caches the result to avoid repeated API calls.
+        
+        Args:
+            include_pockets: If True, includes pocket suffixes like -proposed, -updates, -security
+            
+        Returns:
+            Set of valid distribution names (e.g., {'jammy', 'focal', 'jammy-proposed', ...})
+        """
+        if self._valid_distributions is not None and include_pockets:
+            return self._valid_distributions
+        
+        distributions = set()
+        pockets = ['', '-proposed', '-updates', '-security', '-backports'] if include_pockets else ['']
+        
+        try:
+            # Get all series (including current and supported releases)
+            for series in self._ubuntu.series:
+                # Only include series that are current or supported
+                if series.active:
+                    series_name = series.name
+                    for pocket in pockets:
+                        distributions.add(f"{series_name}{pocket}")
+            
+            # Cache the full set (with pockets) for future use
+            if include_pockets:
+                self._valid_distributions = distributions
+                
+        except Exception as e:
+            print(f"Error fetching valid distributions: {e}")
+            # Return a minimal set of known distributions as fallback
+            distributions = {
+                'questing', 'questing-proposed', 'questing-updates', 'questing-security',
+                'plucky', 'plucky-proposed', 'plucky-updates', 'plucky-security',
+                'noble', 'noble-proposed', 'noble-updates', 'noble-security',
+                'jammy', 'jammy-proposed', 'jammy-updates', 'jammy-security',
+                'focal', 'focal-proposed', 'focal-updates', 'focal-security',
+            }
+        
+        return distributions
+    
+    def is_valid_distribution(self, distribution: str) -> bool:
+        """
+        Check if a distribution name is valid.
+        
+        Args:
+            distribution: The distribution name to check (e.g., 'jammy', 'jammy-proposed')
+            
+        Returns:
+            True if the distribution is valid, False otherwise
+        """
+        valid_distributions = self.get_valid_distributions()
+        return distribution in valid_distributions
     
     @staticmethod
     def extract_lp_bugs(text: str) -> List[int]:
