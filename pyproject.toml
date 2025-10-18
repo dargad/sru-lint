@@ -12,9 +12,10 @@ unidiff = "^0.7.5"
 python-debian = "^1.0.1"
 launchpadlib = "^2.1.0"
 coverage = "^7.10.7"
+parse = "^1.20.2"
 
 [tool.poetry.scripts]
-sru_lint = "sru_lint.cli:app"
+sru-lint = "sru_lint.cli:app"
 
 [build-system]
 requires = ["poetry-core"]
