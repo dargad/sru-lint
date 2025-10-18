@@ -1,8 +1,10 @@
+from sru_lint.common.deb_changelog import DebianChangelogHeader, parse_header
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.patches import combine_added_lines
 
 from debian import changelog
+from debian.debian_support import Version
 
 
 class ChangelogEntry(Plugin):
@@ -26,6 +28,26 @@ class ChangelogEntry(Plugin):
         feedback = []
 
         content = combine_added_lines(patched_file)
+        content_with_context = combine_added_lines(patched_file, include_context=True)
+
+        changelog_headers = []
+        for k in content_with_context:
+            file_content = content_with_context[k]
+            for line in file_content.splitlines():
+                try:
+                    header = parse_header(line)
+                    changelog_headers.append(header)
+                except ValueError:
+                    continue
+
+        if len(changelog_headers) > 1:
+            try:
+                self.assert_version_order(changelog_headers)
+                print("✅ Changelog version order is correct.")
+            except AssertionError as e:
+                print(f"❌ Changelog version order is incorrect: {e}")
+
+        print(f"Found {len(changelog_headers)} changelog headers: {changelog_headers}")
 
         for k in content:
             cl = changelog.Changelog(content[k])
@@ -79,3 +101,13 @@ class ChangelogEntry(Plugin):
     def check_distribution(self, distributions):
         """Check if the distribution field in the changelog is valid."""
         return self.lp_helper.is_valid_distribution(distributions)
+
+    def assert_version_order(self, headers: list[DebianChangelogHeader]):
+        for idx, (prev, curr) in enumerate(zip(headers, headers[1:])):
+            v_prev = Version(prev.version)
+            v_curr = Version(curr.version)
+            if not (v_prev > v_curr):
+                raise AssertionError(
+                    f"Version order error at index {idx}: "
+                    f"{prev.version} <= {curr.version}"
+                )
