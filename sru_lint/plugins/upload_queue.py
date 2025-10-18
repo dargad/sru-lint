@@ -1,6 +1,5 @@
 import re
 from os.path import expanduser
-from launchpadlib.launchpad import Launchpad
 from debian import changelog
 
 from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
@@ -9,14 +8,6 @@ from sru_lint.plugins.plugin_base import Plugin
 
 class UploadQueue(Plugin):
     """Checks if the version in debian/changelog is already in the upload queue for review."""
-
-    def __init__(self):
-        cache_dir = expanduser("~/.cache/launchpadlib-devel")
-        self._lp = Launchpad.login_anonymously(
-            "check-version", "production", version="devel"
-        )
-        self._ubuntu = self._lp.distributions["ubuntu"]
-        self._archive = self._ubuntu.main_archive
 
     def register_file_patterns(self):
         """Register that we want to check debian/changelog files."""
@@ -37,11 +28,11 @@ class UploadQueue(Plugin):
 
         for suite in suites:
             base = suite.split("-", 1)[0]             # 'jammy-proposed' -> 'jammy'
-            ds = self._ubuntu.getSeries(name_or_version=base)  # IDistroSeries
+            ds = self.lp_helper.ubuntu.getSeries(name_or_version=base)  # IDistroSeries
 
             # NOTE: getPackageUploads is on *distro series*, with 'archive' as a filter.
             uploads = ds.getPackageUploads(
-                archive=self._archive,
+                archive=self.lp_helper.archive,
                 name=package_name,        # package or file name; pair with exact_match if desired
                 exact_match=True,         # optional; narrows 'name' to exact package
             )
