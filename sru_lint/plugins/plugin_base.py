@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 import re
-from typing import List, Set, Callable
+from typing import List, Set, Callable, Optional
 import fnmatch
+
+from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 
 
 class Plugin(ABC):
@@ -119,3 +121,101 @@ class Plugin(ABC):
             List of FeedbackItem objects representing issues found in the file
         """
         raise NotImplementedError("Subclasses must implement process_file()")
+
+    def create_feedback(
+        self, 
+        message: str, 
+        rule_id: str, 
+        severity: Severity = Severity.ERROR,
+        patched_file = None,
+        line_number: Optional[int] = None,
+        col_start: int = 1,
+        col_end: Optional[int] = None
+    ) -> FeedbackItem:
+        """
+        Create a FeedbackItem with proper span information.
+        
+        Args:
+            message: The feedback message
+            rule_id: The rule identifier
+            severity: The severity level
+            patched_file: The PatchedFile object (optional)
+            line_number: Specific line number (optional)
+            col_start: Column start position
+            col_end: Column end position (optional)
+        """
+        if patched_file:
+            path = patched_file.path
+            # Try to get reasonable line numbers from the patch
+            if line_number is None and patched_file:
+                # Use the first modified line as default
+                for hunk in patched_file:
+                    for line in hunk:
+                        if line.is_added or line.is_removed:
+                            line_number = line.target_line_no or line.source_line_no or 1
+                            break
+                    if line_number:
+                        break
+        else:
+            path = "unknown"
+        
+        line_number = line_number or 1
+        col_end = col_end or col_start
+        
+        return FeedbackItem(
+            message=message,
+            span=SourceSpan(
+                path=path,
+                start_line=line_number,
+                start_col=col_start,
+                end_line=line_number,
+                end_col=col_end,
+                start_offset=0,  # Could be calculated if needed
+                end_offset=0
+            ),
+            rule_id=rule_id,
+            severity=severity
+        )
+
+    def create_line_feedback(
+        self,
+        message: str,
+        rule_id: str,
+        patched_file,
+        target_line_content: str,
+        severity: Severity = Severity.ERROR
+    ) -> FeedbackItem:
+        """
+        Create feedback for a specific line content found in the patch.
+        
+        This method searches through the patch to find the exact line number
+        where the content appears.
+        """
+        line_number = 1
+        col_start = 1
+        col_end = len(target_line_content)
+        
+        # Search for the line in the patch
+        for hunk in patched_file:
+            for line in hunk:
+                if target_line_content in line.value:
+                    line_number = line.target_line_no or line.source_line_no or 1
+                    # Find column position of the content
+                    col_start = line.value.find(target_line_content) + 1
+                    col_end = col_start + len(target_line_content)
+                    break
+        
+        return FeedbackItem(
+            message=message,
+            span=SourceSpan(
+                path=patched_file.path,
+                start_line=line_number,
+                start_col=col_start,
+                end_line=line_number,
+                end_col=col_end,
+                start_offset=0,
+                end_offset=0
+            ),
+            rule_id=rule_id,
+            severity=severity
+        )

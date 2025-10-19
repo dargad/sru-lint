@@ -1,4 +1,4 @@
-from sru_lint.common.deb_changelog import DebianChangelogHeader, parse_header
+from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.plugins.plugin_base import Plugin
@@ -18,114 +18,91 @@ class ChangelogEntry(Plugin):
     def process_file(self, patched_file):
         """
         Checks done in the changelog entry:
-        - Check if the distribution is valid (e.g., 'jammy', 'jammy-proposed', etc.)
-        - Check if the version number is valid.
-        - If there is an LP bug number mentioned (LP: #123456), check if
-          the bug exists and if it is targeted at the correct package and
-          distribution.
+        - Check if the distribution is valid
+        - Check if LP bugs are properly targeted
+        - Check version ordering
         """
-        print("ChangelogEntry")
-
-        filename = patched_file.target_file
+        self.logger.info("Processing changelog entry")
 
         feedback = []
-
         content = combine_added_lines(patched_file)
         content_with_context = combine_added_lines(patched_file, include_context=True)
 
+        # Parse changelog headers for version ordering
         changelog_headers = []
         for k in content_with_context:
             file_content = content_with_context[k]
-            for line in file_content.splitlines():
+            for line_no, line in enumerate(file_content.splitlines(), 1):
                 try:
                     header = parse_header(line)
+                    header.line_number = line_no  # Store line number for later use
                     changelog_headers.append(header)
                 except ValueError:
                     continue
 
+        # Check version ordering
         if len(changelog_headers) > 1:
-            try:
-                self.assert_version_order(filename, changelog_headers)
-                print("✅ Changelog version order is correct.")
-            except AssertionError as e:
-                print(f"❌ Changelog version order is incorrect: {e}")
+            version_errors = self.check_version_order(patched_file, changelog_headers)
+            feedback.extend(version_errors)
 
-        print(f"Found {len(changelog_headers)} changelog headers: {changelog_headers}")
+        self.logger.debug(f"Found {len(changelog_headers)} changelog headers")
 
+        # Check changelog content
         for k in content:
             cl = changelog.Changelog(content[k])
 
+            # Check distribution validity
             if not self.check_distribution(cl.distributions):
-                feedback.append(FeedbackItem(
+                feedback.append(self.create_feedback(
                     message=f"Invalid distribution '{cl.distributions}'",
-                    span=SourceSpan(
-                        path=patched_file.path,
-                        start_line=1,
-                        start_col=1,
-                        end_line=1,
-                        end_col=1,
-                        start_offset=0,
-                        end_offset=0
-                    ),
                     rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
-                    severity=Severity.ERROR
+                    severity=Severity.ERROR,
+                    patched_file=patched_file
                 ))
-                print(f"❌ Invalid distribution in changelog: '{cl.distributions}'")
+                self.logger.error(f"Invalid distribution: '{cl.distributions}'")
 
-            print(f"{cl.get_package()}:{cl.distributions}:{cl.full_version}")
-            print(f"Author: {cl.author} Date: {cl.date}")
+            self.logger.debug(f"{cl.get_package()}:{cl.distributions}:{cl.full_version}")
 
-            # Extract LP bug numbers using the helper
+            # Check LP bug targeting
             lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
+            for lpbug in lpbugs:
+                self.logger.info(f"Checking LP Bug: #{lpbug}")
+                
+                if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
+                    # Find the specific line where this LP bug appears
+                    lp_bug_text = f"LP: #{lpbug}"
+                    feedback.append(self.create_line_feedback(
+                        message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
+                        rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
+                        severity=Severity.ERROR,
+                        patched_file=patched_file,
+                        target_line_content=lp_bug_text
+                    ))
+                    self.logger.error(f"Bug {lpbug} not properly targeted")
 
-            if lpbugs:
-                for lpbug in lpbugs:
-                    print(f"LP Bug: LP: #{lpbug}")
-                    
-                    is_targeted = self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions)
-                    if not is_targeted:
-                        feedback.append(FeedbackItem(
-                            message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
-                            span=SourceSpan(
-                                path=patched_file.path,
-                                start_line=1,
-                                start_col=1,
-                                end_line=1,
-                                end_col=1,
-                                start_offset=0,
-                                end_offset=0
-                            ),
-                            rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
-                            severity=Severity.ERROR
-                        ))
-                        print(f"Bug {lpbug} is NOT targeted at {cl.get_package()} and {cl.distributions}")
         return feedback
 
     def check_distribution(self, distributions):
         """Check if the distribution field in the changelog is valid."""
         return self.lp_helper.is_valid_distribution(distributions)
 
-    def assert_version_order(self, filename: str, headers: list[DebianChangelogHeader]):
-        """Assert that the versions in the changelog headers are in descending order."""
+    def check_version_order(self, patched_file, headers: list[DebianChangelogHeader]) -> list[FeedbackItem]:
+        """Check that versions are in descending order."""
         errors = []
-
+        
         for idx, (prev, curr) in enumerate(zip(headers, headers[1:])):
             v_prev = Version(prev.version)
             v_curr = Version(curr.version)
             if not (v_prev > v_curr):
-                errors.append(FeedbackItem(
-                    message=f"Changelog version order error: '{prev.version}' is not greater than '{curr.version}'",
-                    span=SourceSpan(
-                        path=filename,
-                        start_line=1,
-                        start_col=1,
-                        end_line=1,
-                        end_col=1,
-                        start_offset=0,
-                        end_offset=0
-                    ),
+                # Use the line number where the problematic version appears
+                line_number = getattr(curr, 'line_number', None)
+                
+                errors.append(self.create_feedback(
+                    message=f"Version order error: '{prev.version}' should be greater than '{curr.version}'",
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
-                    severity=Severity.ERROR
+                    severity=Severity.ERROR,
+                    patched_file=patched_file,
+                    line_number=line_number
                 ))
-            
+                
         return errors
