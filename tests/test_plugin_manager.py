@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from sru_lint.plugin_manager import PluginManager
-from sru_lint.plugins.plugin_base import Plugin
+from sru_lint.plugins.plugin_base import Plugin, ProcessedFile
+from sru_lint.common.feedback import SourceSpan, SourceLine
 import types
 import sys
 
@@ -9,28 +10,32 @@ class DummyPlugin(Plugin):
     def register_file_patterns(self):
         self.add_file_pattern("*.txt")
     
-    def process_file(self, patched_file):
+    def process_file(self, processed_file: ProcessedFile):
+        # Updated to use ProcessedFile instead of patched_file
         pass
 
 class AnotherPlugin(Plugin):
     def register_file_patterns(self):
         self.add_file_pattern("*.py")
     
-    def process_file(self, patched_file):
+    def process_file(self, processed_file: ProcessedFile):
+        # Updated to use ProcessedFile instead of patched_file
         pass
 
 class ThirdPlugin(Plugin):
     def register_file_patterns(self):
         self.add_file_pattern("*.md")
     
-    def process_file(self, patched_file):
+    def process_file(self, processed_file: ProcessedFile):
+        # Updated to use ProcessedFile instead of patched_file
         pass
 
 class NestedDummyPlugin(Plugin):
     def register_file_patterns(self):
         self.add_file_pattern("debian/changelog")
     
-    def process_file(self, patched_file):
+    def process_file(self, processed_file: ProcessedFile):
+        # Updated to use ProcessedFile instead of patched_file
         pass
 
 class NotAPlugin:
@@ -44,7 +49,37 @@ def create_mock_module(name, classes):
         setattr(module, class_name, class_obj)
     return module
 
+def create_test_processed_file(path="test.py", content_lines=None):
+    """Helper to create a test ProcessedFile object"""
+    if content_lines is None:
+        content_lines = ["print('hello')", "return True"]
+    
+    source_lines = [
+        SourceLine(content=line, line_number=i+1, is_added=True)
+        for i, line in enumerate(content_lines)
+    ]
+    
+    source_span = SourceSpan(
+        path=path,
+        start_line=1,
+        start_col=1,
+        end_line=len(content_lines),
+        end_col=1,
+        content=source_lines,
+        content_with_context=source_lines
+    )
+    
+    return ProcessedFile(path=path, source_span=source_span)
+
 class TestPluginManager(unittest.TestCase):
+    def setUp(self):
+        """Set up test fixtures"""
+        self.test_processed_files = [
+            create_test_processed_file("test.txt", ["Hello world"]),
+            create_test_processed_file("test.py", ["print('hello')", "return True"]),
+            create_test_processed_file("README.md", ["# Title", "Content"])
+        ]
+
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
@@ -86,6 +121,20 @@ class TestPluginManager(unittest.TestCase):
             self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
             self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
             self.assertEqual(len(plugins), 2)
+            
+            # Test that plugins can process ProcessedFile objects
+            for plugin in plugins:
+                if isinstance(plugin, DummyPlugin):
+                    # Should process .txt files
+                    txt_files = [pf for pf in self.test_processed_files if pf.path.endswith('.txt')]
+                    feedback = plugin.process(txt_files)
+                    self.assertIsInstance(feedback, list)
+                elif isinstance(plugin, AnotherPlugin):
+                    # Should process .py files
+                    py_files = [pf for pf in self.test_processed_files if pf.path.endswith('.py')]
+                    feedback = plugin.process(py_files)
+                    self.assertIsInstance(feedback, list)
+                    
         finally:
             # Cleanup
             sys.modules.pop("sru_lint.plugins.dummy_plugin", None)
@@ -107,6 +156,12 @@ class TestPluginManager(unittest.TestCase):
         self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
         self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
         self.assertEqual(len(plugins), 2)
+        
+        # Test plugin initialization
+        for plugin in plugins:
+            self.assertIsInstance(plugin.feedback, list)
+            self.assertTrue(hasattr(plugin, 'logger'))
+            self.assertTrue(hasattr(plugin, 'lp_helper'))
 
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
@@ -158,6 +213,12 @@ class TestPluginManager(unittest.TestCase):
             # Should find the plugin in the nested module
             self.assertEqual(len(plugins), 1)
             self.assertIsInstance(plugins[0], NestedDummyPlugin)
+            
+            # Test file pattern matching
+            plugin = plugins[0]
+            self.assertTrue(plugin.matches_file("debian/changelog"))
+            self.assertFalse(plugin.matches_file("other/file.txt"))
+            
         finally:
             # Cleanup
             sys.modules.pop("sru_lint.plugins.nested", None)
@@ -425,6 +486,107 @@ class TestPluginManager(unittest.TestCase):
         # Should still load plugins from the main module
         self.assertEqual(len(plugins), 1)
         self.assertIsInstance(plugins[0], DummyPlugin)
+
+    def test_plugin_file_pattern_matching(self):
+        """Test plugin file pattern matching functionality"""
+        # Create a plugin instance
+        plugin = DummyPlugin()
+        
+        # Test file pattern matching
+        self.assertTrue(plugin.matches_file("test.txt"))
+        self.assertTrue(plugin.matches_file("path/to/test.txt"))
+        self.assertTrue(plugin.matches_file("nested/path/to/test.txt"))
+        self.assertFalse(plugin.matches_file("test.py"))
+        self.assertFalse(plugin.matches_file("test.md"))
+
+    def test_plugin_feedback_management(self):
+        """Test plugin feedback collection functionality"""
+        plugin = DummyPlugin()
+        
+        # Initially empty
+        self.assertEqual(len(plugin.feedback), 0)
+        
+        # Test processing (should clear feedback)
+        processed_files = [create_test_processed_file("test.txt")]
+        feedback = plugin.process(processed_files)
+        
+        # Should return the same list
+        self.assertIs(feedback, plugin.feedback)
+        
+        # Test multiple calls clear previous feedback
+        plugin.feedback.append(MagicMock())  # Add some dummy feedback
+        self.assertEqual(len(plugin.feedback), 1)
+        
+        feedback = plugin.process(processed_files)
+        self.assertEqual(len(plugin.feedback), 0)  # Should be cleared
+
+    def test_plugin_symbolic_name_generation(self):
+        """Test plugin symbolic name generation"""
+        # Test with actual plugin classes
+        dummy_plugin = DummyPlugin()
+        self.assertEqual(dummy_plugin.__symbolic_name__, "dummy-plugin")
+        
+        another_plugin = AnotherPlugin()
+        self.assertEqual(another_plugin.__symbolic_name__, "another-plugin")
+        
+        nested_plugin = NestedDummyPlugin()
+        self.assertEqual(nested_plugin.__symbolic_name__, "nested-dummy-plugin")
+
+    def test_plugin_logger_initialization(self):
+        """Test that plugins have properly initialized loggers"""
+        plugin = DummyPlugin()
+        
+        # Should have a logger
+        self.assertTrue(hasattr(plugin, 'logger'))
+        self.assertIsNotNone(plugin.logger)
+        
+        # Logger should have the correct name
+        expected_name = f"sru-lint.plugins.{plugin.__symbolic_name__}"
+        self.assertEqual(plugin.logger.name, expected_name)
+
+    def test_plugin_create_feedback_helpers(self):
+        """Test plugin feedback creation helper methods"""
+        plugin = DummyPlugin()
+        processed_file = create_test_processed_file("test.txt", ["Hello world", "Second line"])
+        
+        # Test create_feedback method
+        feedback = plugin.create_feedback(
+            message="Test message",
+            rule_id="TEST001",
+            source_span=processed_file.source_span,
+            line_number=2
+        )
+        
+        # Should be added to plugin feedback
+        self.assertEqual(len(plugin.feedback), 1)
+        self.assertEqual(plugin.feedback[0], feedback)
+        
+        # Check feedback properties
+        self.assertEqual(feedback.message, "Test message")
+        self.assertEqual(feedback.rule_id, "TEST001")
+        self.assertEqual(feedback.span.start_line, 2)
+        self.assertEqual(feedback.span.path, "test.txt")
+
+    def test_plugin_create_line_feedback(self):
+        """Test plugin line-specific feedback creation"""
+        plugin = DummyPlugin()
+        processed_file = create_test_processed_file("test.txt", ["Hello world", "Second line"])
+        
+        # Test create_line_feedback method
+        feedback = plugin.create_line_feedback(
+            message="Line-specific message",
+            rule_id="TEST002",
+            source_span=processed_file.source_span,
+            target_line_content="Hello world"
+        )
+        
+        # Should be added to plugin feedback
+        self.assertEqual(len(plugin.feedback), 1)
+        self.assertEqual(plugin.feedback[0], feedback)
+        
+        # Check that it found the correct line
+        self.assertEqual(feedback.span.start_line, 1)  # First line contains "Hello world"
+        self.assertEqual(feedback.span.start_col, 1)   # Found at beginning of line
 
 if __name__ == "__main__":
     unittest.main()
