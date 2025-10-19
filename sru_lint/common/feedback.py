@@ -101,3 +101,25 @@ class FeedbackReport:
             "items": [i.to_dict() for i in self.items],
         }
         return json.dumps(payload, ensure_ascii=False, indent=indent)
+
+def create_source_span(patched_file, ) -> SourceSpan:
+    """
+    Create a SourceSpan for the entire patched file.
+    """
+    # Calculate the total number of lines and columns
+    total_lines = 0
+    total_cols = 0
+    for hunk in patched_file:
+        for line in hunk:
+            total_lines += 1
+            total_cols = max(total_cols, len(line.value))
+
+    return SourceSpan(
+        path=patched_file.path,
+        start_line=1,
+        start_col=1,
+        end_line=total_lines + 1,
+        end_col=total_cols + 1,
+        start_offset=0,
+        end_offset=sum(len(line.value) + 1 for hunk in patched_file for line in hunk)  # +1 for newlines
+    )
