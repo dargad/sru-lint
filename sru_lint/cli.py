@@ -1,10 +1,66 @@
 from typing import Optional
+import logging
 
 import unidiff
 from sru_lint.plugin_manager import PluginManager
+from sru_lint.common.logging import setup_logger, get_logger
 import typer
 
-app = typer.Typer(help="punch - a CLI tool for managing your tasks")
+# Global state for CLI options
+class GlobalOptions:
+    verbose: int = 0
+    quiet: bool = False
+
+global_options = GlobalOptions()
+
+def configure_logging():
+    """Configure logging based on global options."""
+    if global_options.quiet:
+        log_level = logging.ERROR
+    elif global_options.verbose >= 2:
+        log_level = logging.DEBUG
+    elif global_options.verbose >= 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.WARNING
+    
+    setup_logger(level=log_level)
+
+def verbose_callback(value: int):
+    """Callback for verbose option."""
+    global_options.verbose = value
+    configure_logging()
+
+def quiet_callback(value: bool):
+    """Callback for quiet option."""
+    global_options.quiet = value
+    configure_logging()
+
+app = typer.Typer(
+    help="sru-lint - Static analysis tool for Ubuntu SRU patches",
+    add_completion=False,
+    callback=lambda: None  # Dummy callback to allow global options
+)
+
+# Add global options to the main app
+@app.callback()
+def main(
+    verbose: int = typer.Option(
+        0, "--verbose", "-v", count=True,
+        help="Increase verbosity (-v for INFO, -vv for DEBUG)",
+        callback=verbose_callback,
+        is_eager=True
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q",
+        help="Suppress all output except errors",
+        callback=quiet_callback,
+        is_eager=True
+    ),
+):
+    """Global options for sru-lint."""
+    pass
+
 
 @app.command()
 def check(
@@ -19,6 +75,9 @@ def check(
     """
     Run the linter on the specified patch.
     """
+    logger = get_logger("cli")
+    logger.debug(f"Reading patch from {infile.name}")
+    
     # Process comma-separated module names
     expanded_modules = []
     for module_item in modules:
@@ -27,32 +86,66 @@ def check(
     
     # Remove empty items
     expanded_modules = [m for m in expanded_modules if m]
+    logger.debug(f"Modules to run: {expanded_modules}")
     
-    patchset = unidiff.PatchSet(infile.read())
+    # Read and parse patch
+    patch_content = infile.read()
+    patchset = unidiff.PatchSet(patch_content)
+    logger.info(f"Parsed {len(patchset)} files from patch")
 
     pm = PluginManager()
     plugins = pm.load_plugins()
+    logger.debug(f"Loaded {len(plugins)} plugins")
     
     # Filter plugins based on modules
     if "all" not in expanded_modules:
         # Filter plugins by their symbolic names
         filtered_plugins = [p for p in plugins if p.__symbolic_name__ in expanded_modules]
         if not filtered_plugins:
-            typer.echo(f"Warning: No plugins found matching the specified modules: {', '.join(expanded_modules)}")
+            logger.warning(f"No plugins found matching the specified modules: {', '.join(expanded_modules)}")
             typer.echo("Available modules:")
             for plugin in plugins:
                 typer.echo(f"- {plugin.__symbolic_name__}")
             return
         plugins = filtered_plugins
+        logger.info(f"Filtered to {len(plugins)} plugins: {[p.__symbolic_name__ for p in plugins]}")
+    
+    logger.info(f"Running {len(plugins)} plugins")
     
     feedback = []
     for plugin in plugins:
-        feedback.extend(plugin.process(patchset))
+        logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
+        plugin_feedback = plugin.process(patchset)
+        feedback.extend(plugin_feedback)
+        logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
     
-    print(f"Collected {len(feedback)} feedback items from {len(plugins)} plugin(s).")
-    print("Feedback:")
-    for item in feedback:
-        print(f"- {item.message} (Severity: {item.severity})")
+    # Count feedback by severity
+    error_count = sum(1 for item in feedback if item.severity.value == "error")
+    warning_count = sum(1 for item in feedback if item.severity.value == "warning")
+    info_count = sum(1 for item in feedback if item.severity.value == "info")
+    
+    logger.info(f"Collected {len(feedback)} feedback items: {error_count} errors, {warning_count} warnings, {info_count} info")
+    
+    # Print feedback summary (always shown unless quiet mode)
+    if not global_options.quiet:
+        if feedback:
+            typer.echo("\nFeedback:")
+            for item in feedback:
+                # Format output based on severity
+                severity_color = {
+                    "error": typer.colors.RED,
+                    "warning": typer.colors.YELLOW,
+                    "info": typer.colors.BLUE,
+                }.get(item.severity.value, None)
+                
+                typer.secho(f"- {item.message} (Severity: {item.severity.value})", fg=severity_color)
+        else:
+            typer.secho("✅ No issues found", fg=typer.colors.GREEN)
+    
+    # Exit with error code if there are any errors
+    if error_count > 0:
+        logger.error(f"Found {error_count} error(s)")
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -60,10 +153,13 @@ def plugins():
     """
     List all available plugins.
     """
+    logger = get_logger("cli")
+    
     typer.echo("Available plugins:")
     
     pm = PluginManager()
     plugins = pm.load_plugins()
+    logger.debug(f"Loaded {len(plugins)} plugins")
     
     if not plugins:
         typer.echo("No plugins found.")
@@ -81,6 +177,7 @@ def plugins():
         plugin_description = " ".join(plugin_description.split())
         # Print formatted output with aligned descriptions
         typer.echo(f"- {plugin_name:<{max_name_length}} : {plugin_description}")
+        logger.debug(f"Plugin {plugin_name}: {plugin.__class__.__module__}.{plugin.__class__.__name__}")
 
 
 @app.command()
@@ -88,7 +185,11 @@ def inspect():
     """
     Inspect the patch and generate a HTML report.
     """
+    logger = get_logger("cli")
+    logger.info("Starting patch inspection")
     typer.echo("Inspecting code...")
+    # TODO: Implement inspection logic
+
 
 @app.command()
 def help(
@@ -122,6 +223,7 @@ def help(
     with typer.Context(target, info_name=" ".join(info_parts), parent=ctx.parent) as subctx:
         typer.echo(target.get_help(subctx))
     raise typer.Exit()
+
 
 if __name__ == "__main__":
     app()
