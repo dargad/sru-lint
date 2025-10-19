@@ -148,7 +148,7 @@ class Plugin(ABC):
         message: str, 
         rule_id: str, 
         severity: Severity = Severity.ERROR,
-        patched_file = None,
+        source_span: Optional[SourceSpan] = None,
         line_number: Optional[int] = None,
         col_start: int = 1,
         col_end: Optional[int] = None
@@ -160,7 +160,7 @@ class Plugin(ABC):
             message: The feedback message
             rule_id: The rule identifier
             severity: The severity level
-            patched_file: The PatchedFile object (optional)
+            source_span: The source span of the feedback (optional)
             line_number: Specific line number (optional)
             col_start: Column start position
             col_end: Column end position (optional)
@@ -168,12 +168,15 @@ class Plugin(ABC):
         Returns:
             The created FeedbackItem (also automatically added to self.feedback)
         """
-        if patched_file:
-            path = patched_file.path
+        if source_span:
+            path = source_span.path
+            line_number = source_span.start_line
+            col_start = source_span.start_col
+            col_end = source_span.end_col
             # Try to get reasonable line numbers from the patch
-            if line_number is None and patched_file:
+            if line_number is None and source_span:
                 # Use the first modified line as default
-                for hunk in patched_file:
+                for hunk in source_span:
                     for line in hunk:
                         if line.is_added or line.is_removed:
                             line_number = line.target_line_no or line.source_line_no or 1
@@ -216,7 +219,7 @@ class Plugin(ABC):
         self,
         message: str,
         rule_id: str,
-        patched_file,
+        source_span: Optional[SourceSpan],
         target_line_content: str,
         severity: Severity = Severity.ERROR
     ) -> FeedbackItem:
@@ -229,7 +232,7 @@ class Plugin(ABC):
         Args:
             message: The feedback message
             rule_id: The rule identifier
-            patched_file: The PatchedFile object
+            source_span: The source span of the feedback
             target_line_content: The line content to search for
             severity: The severity level
             
@@ -240,11 +243,11 @@ class Plugin(ABC):
         col_start = 1
         col_end = len(target_line_content)
         
-        self.logger.debug(f"Searching for line content: '{target_line_content}' in {patched_file.path}")
+        self.logger.debug(f"Searching for line content: '{target_line_content}' in {source_span.path}")
         
         # Search for the line in the patch
         found = False
-        for hunk in patched_file:
+        for hunk in source_span:
             for line in hunk:
                 if target_line_content in line.value:
                     line_number = line.target_line_no or line.source_line_no or 1
@@ -263,7 +266,7 @@ class Plugin(ABC):
         feedback_item = FeedbackItem(
             message=message,
             span=SourceSpan(
-                path=patched_file.path,
+                path=source_span.path,
                 start_line=line_number,
                 start_col=col_start,
                 end_line=line_number,
@@ -277,11 +280,11 @@ class Plugin(ABC):
         
         # Log the feedback creation based on severity
         if severity == Severity.ERROR:
-            self.logger.error(f"[{rule_id}] {message} at {patched_file.path}:{line_number}")
+            self.logger.error(f"[{rule_id}] {message} at {source_span.path}:{line_number}")
         elif severity == Severity.WARNING:
-            self.logger.warning(f"[{rule_id}] {message} at {patched_file.path}:{line_number}")
+            self.logger.warning(f"[{rule_id}] {message} at {source_span.path}:{line_number}")
         else:
-            self.logger.info(f"[{rule_id}] {message} at {patched_file.path}:{line_number}")
-        
+            self.logger.info(f"[{rule_id}] {message} at {source_span.path}:{line_number}")
+
         self.add_feedback(feedback_item)
         return feedback_item

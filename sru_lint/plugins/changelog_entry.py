@@ -1,6 +1,7 @@
 from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
 from sru_lint.common.errors import ErrorCode
-from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
+from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, create_source_span
+from sru_lint.common.ui.snippet import render_snippet
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.patches import combine_added_lines
 
@@ -30,6 +31,7 @@ class ChangelogEntry(Plugin):
         changelog_headers = []
         for k in content_with_context:
             file_content = content_with_context[k]
+
             for line_no, line in enumerate(file_content.splitlines(), 1):
                 try:
                     header = parse_header(line)
@@ -53,7 +55,7 @@ class ChangelogEntry(Plugin):
                     message=f"Invalid distribution '{cl.distributions}'",
                     rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
                     severity=Severity.ERROR,
-                    patched_file=patched_file
+                    source_span=create_source_span(patched_file)
                 )
                 self.logger.error(f"Invalid distribution: '{cl.distributions}'")
 
@@ -63,12 +65,12 @@ class ChangelogEntry(Plugin):
                 self.logger.info(f"Checking LP Bug: #{lpbug}")
                 
                 if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
-                    self.create_line_feedback(
+                    self.create_feedback(
                         message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
                         rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
                         severity=Severity.ERROR,
-                        patched_file=patched_file,
-                        target_line_content=f"LP: #{lpbug}"
+                        source_span=create_source_span(patched_file),
+                        # target_line_content=f"LP: #{lpbug}"
                     )
                     self.logger.error(f"Bug {lpbug} not properly targeted")
 
@@ -90,6 +92,6 @@ class ChangelogEntry(Plugin):
                     message=f"Version order error: '{prev.version}' should be greater than '{curr.version}'",
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
                     severity=Severity.ERROR,
-                    patched_file=patched_file,
+                    source_span=create_source_span(patched_file),
                     line_number=line_number
                 )
