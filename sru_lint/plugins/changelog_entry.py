@@ -1,4 +1,5 @@
 from sru_lint.common.deb_changelog import DebianChangelogHeader, parse_header
+from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.patches import combine_added_lines
@@ -25,6 +26,8 @@ class ChangelogEntry(Plugin):
         """
         print("ChangelogEntry")
 
+        filename = patched_file.target_file
+
         feedback = []
 
         content = combine_added_lines(patched_file)
@@ -42,7 +45,7 @@ class ChangelogEntry(Plugin):
 
         if len(changelog_headers) > 1:
             try:
-                self.assert_version_order(changelog_headers)
+                self.assert_version_order(filename, changelog_headers)
                 print("✅ Changelog version order is correct.")
             except AssertionError as e:
                 print(f"❌ Changelog version order is incorrect: {e}")
@@ -64,7 +67,7 @@ class ChangelogEntry(Plugin):
                         start_offset=0,
                         end_offset=0
                     ),
-                    rule_id="CHANGELOG001",
+                    rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
                     severity=Severity.ERROR
                 ))
                 print(f"❌ Invalid distribution in changelog: '{cl.distributions}'")
@@ -92,7 +95,7 @@ class ChangelogEntry(Plugin):
                                 start_offset=0,
                                 end_offset=0
                             ),
-                            rule_id="CHANGELOG002",
+                            rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
                             severity=Severity.ERROR
                         ))
                         print(f"Bug {lpbug} is NOT targeted at {cl.get_package()} and {cl.distributions}")
@@ -102,12 +105,27 @@ class ChangelogEntry(Plugin):
         """Check if the distribution field in the changelog is valid."""
         return self.lp_helper.is_valid_distribution(distributions)
 
-    def assert_version_order(self, headers: list[DebianChangelogHeader]):
+    def assert_version_order(self, filename: str, headers: list[DebianChangelogHeader]):
+        """Assert that the versions in the changelog headers are in descending order."""
+        errors = []
+
         for idx, (prev, curr) in enumerate(zip(headers, headers[1:])):
             v_prev = Version(prev.version)
             v_curr = Version(curr.version)
             if not (v_prev > v_curr):
-                raise AssertionError(
-                    f"Version order error at index {idx}: "
-                    f"{prev.version} <= {curr.version}"
-                )
+                errors.append(FeedbackItem(
+                    message=f"Changelog version order error: '{prev.version}' is not greater than '{curr.version}'",
+                    span=SourceSpan(
+                        path=filename,
+                        start_line=1,
+                        start_col=1,
+                        end_line=1,
+                        end_col=1,
+                        start_offset=0,
+                        end_offset=0
+                    ),
+                    rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
+                    severity=Severity.ERROR
+                ))
+            
+        return errors
