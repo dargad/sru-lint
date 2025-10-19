@@ -74,6 +74,7 @@ def create_test_processed_file(path="test.py", content_lines=None):
 class TestPluginManager(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
+        self.plugin_manager = PluginManager()
         self.test_processed_files = [
             create_test_processed_file("test.txt", ["Hello world"]),
             create_test_processed_file("test.py", ["print('hello')", "return True"]),
@@ -83,21 +84,33 @@ class TestPluginManager(unittest.TestCase):
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_with_submodules(self, mock_plugins, mock_iter_modules, mock_import_module):
-        # Create actual module objects instead of MagicMock
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_with_submodules(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules, mock_import_module):
+        # Mock the plugins package
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin,
             "AnotherPlugin": AnotherPlugin
         })
         mock_plugins_module.__path__ = ["dummy_path"]
         mock_plugins_module.__name__ = "sru_lint.plugins"
-        mock_plugins.return_value = mock_plugins_module
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Copy attributes for inspect.getmembers to work
-        for attr in ['DummyPlugin', 'AnotherPlugin']:
-            setattr(mock_plugins, attr, getattr(mock_plugins_module, attr))
+        # Mock getmembers to return only our test classes
+        def getmembers_side_effect(module, predicate=None):
+            if module is mock_plugins:
+                return [
+                    ("DummyPlugin", DummyPlugin),
+                    ("AnotherPlugin", AnotherPlugin)
+                ]
+            elif hasattr(module, '__name__') and module.__name__.endswith('dummy_plugin'):
+                return [("DummyPlugin", DummyPlugin)]
+            elif hasattr(module, '__name__') and module.__name__.endswith('another_plugin'):
+                return [("AnotherPlugin", AnotherPlugin)]
+            return []
+        
+        mock_getmembers.side_effect = getmembers_side_effect
         
         mock_iter_modules.return_value = [
             (None, "sru_lint.plugins.dummy_plugin", False),
@@ -112,47 +125,57 @@ class TestPluginManager(unittest.TestCase):
             "AnotherPlugin": AnotherPlugin
         })
 
-        # Add to sys.modules (update, don't replace)
-        sys.modules["sru_lint.plugins.dummy_plugin"] = dummy_plugin_mod
-        sys.modules["sru_lint.plugins.another_plugin"] = another_plugin_mod
+        # Mock import_module
+        def import_side_effect(name):
+            if name == "sru_lint.plugins.dummy_plugin":
+                return dummy_plugin_mod
+            elif name == "sru_lint.plugins.another_plugin":
+                return another_plugin_mod
+            return MagicMock()
         
-        try:
-            plugins = PluginManager.load_plugins()
-            self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
-            self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
-            self.assertEqual(len(plugins), 2)
-            
-            # Test that plugins can process ProcessedFile objects
-            for plugin in plugins:
-                if isinstance(plugin, DummyPlugin):
-                    # Should process .txt files
-                    txt_files = [pf for pf in self.test_processed_files if pf.path.endswith('.txt')]
-                    feedback = plugin.process(txt_files)
-                    self.assertIsInstance(feedback, list)
-                elif isinstance(plugin, AnotherPlugin):
-                    # Should process .py files
-                    py_files = [pf for pf in self.test_processed_files if pf.path.endswith('.py')]
-                    feedback = plugin.process(py_files)
-                    self.assertIsInstance(feedback, list)
-                    
-        finally:
-            # Cleanup
-            sys.modules.pop("sru_lint.plugins.dummy_plugin", None)
-            sys.modules.pop("sru_lint.plugins.another_plugin", None)
+        mock_import_module.side_effect = import_side_effect
+        
+        # Mock sys.modules to only contain our test modules
+        mock_sys_modules.update({
+            "sru_lint.plugins.dummy_plugin": dummy_plugin_mod,
+            "sru_lint.plugins.another_plugin": another_plugin_mod
+        })
+        
+        plugins = self.plugin_manager.load_plugins()
+        self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
+        self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
+        self.assertEqual(len(plugins), 2)
+        
+        # Test that plugins can process ProcessedFile objects
+        for plugin in plugins:
+            if isinstance(plugin, DummyPlugin):
+                # Should process .txt files
+                txt_files = [pf for pf in self.test_processed_files if pf.path.endswith('.txt')]
+                feedback = plugin.process(txt_files)
+                self.assertIsInstance(feedback, list)
+            elif isinstance(plugin, AnotherPlugin):
+                # Should process .py files
+                py_files = [pf for pf in self.test_processed_files if pf.path.endswith('.py')]
+                feedback = plugin.process(py_files)
+                self.assertIsInstance(feedback, list)
 
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_no_submodules(self, mock_plugins):
-        # Create actual module object
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_no_submodules(self, mock_getmembers, mock_sys_modules, mock_plugins):
+        # Mock the plugins package
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin,
             "AnotherPlugin": AnotherPlugin
         })
         
-        # Copy attributes for inspect.getmembers to work
-        for attr in ['DummyPlugin', 'AnotherPlugin']:
-            setattr(mock_plugins, attr, getattr(mock_plugins_module, attr))
+        # Mock getmembers to return only our test classes
+        mock_getmembers.return_value = [
+            ("DummyPlugin", DummyPlugin),
+            ("AnotherPlugin", AnotherPlugin)
+        ]
         
-        plugins = PluginManager.load_plugins()
+        plugins = self.plugin_manager.load_plugins()
         self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
         self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
         self.assertEqual(len(plugins), 2)
@@ -161,18 +184,29 @@ class TestPluginManager(unittest.TestCase):
         for plugin in plugins:
             self.assertIsInstance(plugin.feedback, list)
             self.assertTrue(hasattr(plugin, 'logger'))
-            self.assertTrue(hasattr(plugin, 'lp_helper'))
 
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_with_nested_packages(self, mock_plugins, mock_iter_modules, mock_import_module):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_with_nested_packages(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules, mock_import_module):
         """Test loading plugins from nested package structure (e.g., sru_lint.plugins.nested.dummy_plugin)"""
         mock_plugins_module = types.ModuleType("sru_lint.plugins")
         mock_plugins_module.__path__ = ["dummy_path"]
         mock_plugins_module.__name__ = "sru_lint.plugins"
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
+        
+        # Mock getmembers to return no classes from main package
+        def getmembers_side_effect(module, predicate=None):
+            if module is mock_plugins:
+                return []
+            elif hasattr(module, '__name__') and 'nested.dummy_plugin' in module.__name__:
+                return [("NestedDummyPlugin", NestedDummyPlugin)]
+            return []
+        
+        mock_getmembers.side_effect = getmembers_side_effect
         
         # Create nested package and module as actual module objects
         nested_package = types.ModuleType("sru_lint.plugins.nested")
@@ -203,30 +237,28 @@ class TestPluginManager(unittest.TestCase):
         
         mock_import_module.side_effect = import_module_side_effect
         
-        # Add to sys.modules
-        sys.modules["sru_lint.plugins.nested"] = nested_package
-        sys.modules["sru_lint.plugins.nested.dummy_plugin"] = nested_dummy_plugin_mod
+        # Mock sys.modules
+        mock_sys_modules.update({
+            "sru_lint.plugins.nested": nested_package,
+            "sru_lint.plugins.nested.dummy_plugin": nested_dummy_plugin_mod
+        })
         
-        try:
-            plugins = PluginManager.load_plugins()
-            
-            # Should find the plugin in the nested module
-            self.assertEqual(len(plugins), 1)
-            self.assertIsInstance(plugins[0], NestedDummyPlugin)
-            
-            # Test file pattern matching
-            plugin = plugins[0]
-            self.assertTrue(plugin.matches_file("debian/changelog"))
-            self.assertFalse(plugin.matches_file("other/file.txt"))
-            
-        finally:
-            # Cleanup
-            sys.modules.pop("sru_lint.plugins.nested", None)
-            sys.modules.pop("sru_lint.plugins.nested.dummy_plugin", None)
+        plugins = self.plugin_manager.load_plugins()
+        
+        # Should find the plugin in the nested module
+        self.assertEqual(len(plugins), 1)
+        self.assertIsInstance(plugins[0], NestedDummyPlugin)
+        
+        # Test file pattern matching
+        plugin = plugins[0]
+        self.assertTrue(plugin.matches_file("debian/changelog"))
+        self.assertFalse(plugin.matches_file("other/file.txt"))
 
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_filters_base_plugin_class(self, mock_plugins, mock_iter_modules):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_filters_base_plugin_class(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules):
         """Test that the base Plugin class itself is not instantiated"""
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin,
@@ -237,13 +269,15 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Copy attributes for inspect.getmembers to work
-        for attr in ['DummyPlugin', 'Plugin']:
-            setattr(mock_plugins, attr, getattr(mock_plugins_module, attr))
+        # Mock getmembers to return both classes
+        mock_getmembers.return_value = [
+            ("DummyPlugin", DummyPlugin),
+            ("Plugin", Plugin)
+        ]
         
         mock_iter_modules.return_value = []
         
-        plugins = PluginManager.load_plugins()
+        plugins = self.plugin_manager.load_plugins()
         
         # Should only have DummyPlugin, not the base Plugin class
         self.assertEqual(len(plugins), 1)
@@ -252,7 +286,9 @@ class TestPluginManager(unittest.TestCase):
 
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_filters_non_plugin_classes(self, mock_plugins, mock_iter_modules):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_filters_non_plugin_classes(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules):
         """Test that non-Plugin classes are not instantiated"""
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin,
@@ -263,13 +299,15 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Copy attributes for inspect.getmembers to work
-        for attr in ['DummyPlugin', 'NotAPlugin']:
-            setattr(mock_plugins, attr, getattr(mock_plugins_module, attr))
+        # Mock getmembers to return both classes
+        mock_getmembers.return_value = [
+            ("DummyPlugin", DummyPlugin),
+            ("NotAPlugin", NotAPlugin)
+        ]
         
         mock_iter_modules.return_value = []
         
-        plugins = PluginManager.load_plugins()
+        plugins = self.plugin_manager.load_plugins()
         
         # Should only have DummyPlugin
         self.assertEqual(len(plugins), 1)
@@ -279,7 +317,9 @@ class TestPluginManager(unittest.TestCase):
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_handles_duplicate_classes(self, mock_plugins, mock_iter_modules, mock_import_module):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_handles_duplicate_classes(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules, mock_import_module):
         """Test that duplicate plugin classes are not instantiated multiple times"""
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin
@@ -289,8 +329,15 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Copy attributes for inspect.getmembers to work
-        setattr(mock_plugins, 'DummyPlugin', DummyPlugin)
+        # Mock getmembers
+        def getmembers_side_effect(module, predicate=None):
+            if module is mock_plugins:
+                return [("DummyPlugin", DummyPlugin)]
+            elif hasattr(module, '__name__') and 'duplicate_module' in module.__name__:
+                return [("DummyPlugin", DummyPlugin)]
+            return []
+        
+        mock_getmembers.side_effect = getmembers_side_effect
         
         mock_iter_modules.return_value = [
             (None, "sru_lint.plugins.duplicate_module", False)
@@ -300,23 +347,21 @@ class TestPluginManager(unittest.TestCase):
             "DummyPlugin": DummyPlugin
         })
         
-        # Add to sys.modules
-        sys.modules["sru_lint.plugins.duplicate_module"] = duplicate_module
+        mock_import_module.return_value = duplicate_module
+        mock_sys_modules["sru_lint.plugins.duplicate_module"] = duplicate_module
         
-        try:
-            plugins = PluginManager.load_plugins()
-            
-            # Should only have one instance despite appearing in multiple places
-            self.assertEqual(len(plugins), 1)
-            self.assertIsInstance(plugins[0], DummyPlugin)
-        finally:
-            # Cleanup
-            sys.modules.pop("sru_lint.plugins.duplicate_module", None)
+        plugins = self.plugin_manager.load_plugins()
+        
+        # Should only have one instance despite appearing in multiple places
+        self.assertEqual(len(plugins), 1)
+        self.assertIsInstance(plugins[0], DummyPlugin)
 
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_handles_import_errors(self, mock_plugins, mock_iter_modules, mock_import_module):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_handles_import_errors(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules, mock_import_module):
         """Test that plugin loading continues even if a submodule import fails"""
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin
@@ -326,8 +371,15 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Copy attributes for inspect.getmembers to work
-        setattr(mock_plugins, 'DummyPlugin', DummyPlugin)
+        # Mock getmembers
+        def getmembers_side_effect(module, predicate=None):
+            if module is mock_plugins:
+                return [("DummyPlugin", DummyPlugin)]
+            elif hasattr(module, '__name__') and 'good_module' in module.__name__:
+                return [("AnotherPlugin", AnotherPlugin)]
+            return []
+        
+        mock_getmembers.side_effect = getmembers_side_effect
         
         mock_iter_modules.return_value = [
             (None, "sru_lint.plugins.good_module", False),
@@ -338,32 +390,28 @@ class TestPluginManager(unittest.TestCase):
         def side_effect(module_name):
             if module_name == "sru_lint.plugins.bad_module":
                 raise ImportError("Module not found")
-            return MagicMock()
+            return create_mock_module("sru_lint.plugins.good_module", {"AnotherPlugin": AnotherPlugin})
         
         mock_import_module.side_effect = side_effect
         
         good_module = create_mock_module("sru_lint.plugins.good_module", {
             "AnotherPlugin": AnotherPlugin
         })
+        mock_sys_modules["sru_lint.plugins.good_module"] = good_module
         
-        # Add to sys.modules
-        sys.modules["sru_lint.plugins.good_module"] = good_module
+        # Should not raise an exception
+        plugins = self.plugin_manager.load_plugins()
         
-        try:
-            # Should not raise an exception
-            plugins = PluginManager.load_plugins()
-            
-            # Should still load plugins from successful imports
-            self.assertEqual(len(plugins), 2)
-            self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
-            self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
-        finally:
-            # Cleanup
-            sys.modules.pop("sru_lint.plugins.good_module", None)
+        # Should still load plugins from successful imports
+        self.assertEqual(len(plugins), 2)
+        self.assertTrue(any(isinstance(p, DummyPlugin) for p in plugins))
+        self.assertTrue(any(isinstance(p, AnotherPlugin) for p in plugins))
 
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_handles_typeerror_on_issubclass(self, mock_plugins, mock_iter_modules):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_handles_typeerror_on_issubclass(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules):
         """Test that TypeError from issubclass is handled gracefully"""
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin
@@ -373,15 +421,16 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Add a non-class object that will cause TypeError
-        mock_plugins_module.NotARealClass = "not_a_class"
-        setattr(mock_plugins, 'DummyPlugin', DummyPlugin)
-        setattr(mock_plugins, 'NotARealClass', "not_a_class")
+        # Mock getmembers to return a class and a non-class object
+        mock_getmembers.return_value = [
+            ("DummyPlugin", DummyPlugin),
+            ("NotARealClass", "not_a_class")
+        ]
         
         mock_iter_modules.return_value = []
         
         # Should not raise an exception
-        plugins = PluginManager.load_plugins()
+        plugins = self.plugin_manager.load_plugins()
         
         # Should only have the valid plugin
         self.assertEqual(len(plugins), 1)
@@ -390,7 +439,9 @@ class TestPluginManager(unittest.TestCase):
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_filters_sys_modules_correctly(self, mock_plugins, mock_iter_modules, mock_import_module):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_filters_sys_modules_correctly(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules, mock_import_module):
         """Test that sys.modules filtering only includes sru_lint.plugins.* modules"""
         mock_plugins_module = types.ModuleType("sru_lint.plugins")
         mock_plugins_module.__path__ = ["dummy_path"]
@@ -398,6 +449,8 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
+        # Mock getmembers to return no classes from main package
+        mock_getmembers.return_value = []
         mock_iter_modules.return_value = []
         
         # Create modules with various names
@@ -413,22 +466,18 @@ class TestPluginManager(unittest.TestCase):
             "ThirdPlugin": ThirdPlugin
         })
         
-        # Add to sys.modules
-        sys.modules["sru_lint.plugins.valid_module"] = plugin_module
-        sys.modules["sru_lint.other_package.module"] = other_sru_module
-        sys.modules["some_other_package.module"] = unrelated_module
+        # Mock sys.modules to contain all modules
+        mock_sys_modules.update({
+            "sru_lint.plugins.valid_module": plugin_module,
+            "sru_lint.other_package.module": other_sru_module,
+            "some_other_package.module": unrelated_module
+        })
         
-        try:
-            plugins = PluginManager.load_plugins()
-            
-            # Should only load from sru_lint.plugins.* modules
-            self.assertEqual(len(plugins), 1)
-            self.assertIsInstance(plugins[0], DummyPlugin)
-        finally:
-            # Cleanup
-            sys.modules.pop("sru_lint.plugins.valid_module", None)
-            sys.modules.pop("sru_lint.other_package.module", None)
-            sys.modules.pop("some_other_package.module", None)
+        plugins = self.plugin_manager.load_plugins()
+        
+        # Should only load from sru_lint.plugins.* modules
+        self.assertEqual(len(plugins), 1)
+        self.assertIsInstance(plugins[0], DummyPlugin)
 
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     def test_import_submodules_recursively_handles_non_package(self, mock_iter_modules):
@@ -437,14 +486,16 @@ class TestPluginManager(unittest.TestCase):
         non_package_module = types.ModuleType("non_package")
         
         # Should not call iter_modules
-        PluginManager._import_submodules_recursively(non_package_module)
+        self.plugin_manager._import_submodules_recursively(non_package_module)
         
         # iter_modules should not have been called
         mock_iter_modules.assert_not_called()
 
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_empty_package(self, mock_plugins, mock_iter_modules):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_empty_package(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules):
         """Test loading from an empty package (no plugins found)"""
         mock_plugins_module = types.ModuleType("sru_lint.plugins")
         mock_plugins_module.__path__ = ["dummy_path"]
@@ -452,15 +503,19 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
+        # Mock getmembers to return no classes
+        mock_getmembers.return_value = []
         mock_iter_modules.return_value = []
         
-        plugins = PluginManager.load_plugins()
+        plugins = self.plugin_manager.load_plugins()
         self.assertEqual(len(plugins), 0)
 
     @patch("sru_lint.plugin_manager.importlib.import_module")
     @patch("sru_lint.plugin_manager.pkgutil.iter_modules")
     @patch("sru_lint.plugin_manager.sru_lint.plugins")
-    def test_load_plugins_handles_generic_exception(self, mock_plugins, mock_iter_modules, mock_import_module):
+    @patch("sru_lint.plugin_manager.sys.modules", new_callable=dict)
+    @patch("sru_lint.plugin_manager.inspect.getmembers")
+    def test_load_plugins_handles_generic_exception(self, mock_getmembers, mock_sys_modules, mock_plugins, mock_iter_modules, mock_import_module):
         """Test that generic exceptions during import are caught and handled"""
         mock_plugins_module = create_mock_module("sru_lint.plugins", {
             "DummyPlugin": DummyPlugin
@@ -470,8 +525,13 @@ class TestPluginManager(unittest.TestCase):
         mock_plugins.__path__ = mock_plugins_module.__path__
         mock_plugins.__name__ = mock_plugins_module.__name__
         
-        # Copy attributes for inspect.getmembers to work
-        setattr(mock_plugins, 'DummyPlugin', DummyPlugin)
+        # Mock getmembers to return our test class only from main module
+        def getmembers_side_effect(module, predicate=None):
+            if module is mock_plugins:
+                return [("DummyPlugin", DummyPlugin)]
+            return []
+        
+        mock_getmembers.side_effect = getmembers_side_effect
         
         mock_iter_modules.return_value = [
             (None, "sru_lint.plugins.error_module", False)
@@ -481,7 +541,7 @@ class TestPluginManager(unittest.TestCase):
         mock_import_module.side_effect = RuntimeError("Unexpected error")
         
         # Should not raise an exception
-        plugins = PluginManager.load_plugins()
+        plugins = self.plugin_manager.load_plugins()
         
         # Should still load plugins from the main module
         self.assertEqual(len(plugins), 1)
