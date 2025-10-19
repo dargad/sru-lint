@@ -150,12 +150,14 @@ def check(
                 
                 typer.secho(f"- {item.message} (Severity: {item.severity.value})", fg=severity_color)
 
+                print(f"Item span: {item.span.start_line}-{item.span.end_line} in {item.span.path}")
                 render_snippet(
                     code="\n".join([line.content for line in item.span.lines_added]),
                     title=f"File: {item.span.path}",
-                    highlight_lines=[3],
-                    annotations={3: [item.message]},
-                    # target_line_number=item.line_number
+                    highlight_lines=[item.span.start_line] if item.span.start_line >= 0 else [],
+                    annotations={
+                        item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
+                    }
                 )
         else:
             typer.secho("✅ No issues found", fg=typer.colors.GREEN)

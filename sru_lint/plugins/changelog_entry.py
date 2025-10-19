@@ -37,23 +37,22 @@ class ChangelogEntry(Plugin):
                 
                 # Check distribution validity
                 if not self.check_distribution(cl.distributions):
-                    self.create_feedback(
+                    self.create_line_feedback(
                         message=f"Invalid distribution '{cl.distributions}'",
                         rule_id="CHANGELOG001",
                         severity=Severity.ERROR,
-                        source_span=source_span
+                        source_span=source_span,
+                        target_line_content=str(cl.distributions)
                     )
                 
                 # Check LP bugs
                 lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
                 for lpbug in lpbugs:
-                    offset = find_offset(source_span.lines_added, f"LP: #{lpbug}")
-                    print(f"Checking LP bug #{lpbug} at offset {offset}")
                     if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
                         self.create_line_feedback(
                             message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
                             rule_id="CHANGELOG002",
-                            severity=Severity.ERROR,
+                            severity=Severity.WARNING,
                             source_span=source_span,
                             target_line_content=f"LP: #{lpbug}"
                         )
@@ -77,7 +76,7 @@ class ChangelogEntry(Plugin):
         """Check if the distribution field in the changelog is valid."""
         return self.lp_helper.is_valid_distribution(distributions)
     
-    def check_version_order(self, patched_file, headers: list[DebianChangelogHeader]) -> list[FeedbackItem]:
+    def check_version_order(self, processed_file, headers: list[DebianChangelogHeader]) -> list[FeedbackItem]:
         """Check that versions are in descending order."""
         
         self.logger.debug("Checking changelog version order")
@@ -89,13 +88,12 @@ class ChangelogEntry(Plugin):
             if not (v_prev > v_curr):
                 # Use the line number where the problematic version appears
                 line_number = getattr(curr, 'line_number', None)
-                
-                self.create_feedback(
+                self.create_line_feedback(
                     message=f"Version order error: '{prev.version}' should be greater than '{curr.version}'",
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
                     severity=Severity.ERROR,
-                    source_span=create_source_span(patched_file),
-                    line_number=line_number
+                    source_span=processed_file.source_span,
+                    target_line_content=curr.version
                 )
                 errors_found = True
 
