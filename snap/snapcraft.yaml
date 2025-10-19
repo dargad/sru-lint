@@ -1,0 +1,51 @@
+name: sru-lint
+title: SRU linter
+contact: dgadomski@ubuntu.com
+license: MIT
+base: core24
+summary: Static analysis tool for Ubuntu SRU (Stable Release Update) patches
+description: |
+  sru-lint validates Ubuntu SRU patches by checking changelog entries, version numbers,
+  bug targeting, and distribution validity. It integrates with Launchpad to verify bug
+  references and generates structured reports for CI/CD pipelines.
+
+grade: stable
+confinement: strict
+
+apps:
+  sru-lint:
+    command: bin/sru-lint
+    plugs:
+      - home
+      - network
+
+adopt-info: sru-lint
+
+parts:
+  sru-lint:
+    plugin: python
+    source: .
+    build-packages:
+      - execstack
+      - git
+      - python3-dev
+      - python3-pip
+      - python3-poetry
+      - python3-venv
+    override-pull: |
+      craftctl default
+      if tag=$(git describe --tags --exact-match 2>/dev/null); then
+        version="${tag#v}"
+      else
+        latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.1")
+        latest_tag="${latest_tag#v}"
+        ts=$(date -u -d "@$(git log -1 --format=%ct)" +%y%m%d%H%M%S)
+        hash=$(git rev-parse --short HEAD)
+        version="${latest_tag}+${ts}.${hash}"
+      fi
+      craftctl set version="$version"
+
+# Notes:
+# - This snap uses Poetry for dependency management and builds the wheel.
+# - The Playwright browser dependencies are included in stage-packages for headless browser support.
+# - You may need to run `playwright install` after installing the snap to fetch browser binaries.
