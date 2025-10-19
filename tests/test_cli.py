@@ -7,6 +7,7 @@ from sru_lint.cli import app
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.plugins.plugin_base import ProcessedFile
 
+# for CI environments that may not support colors
 import os
 os.environ["TERM"] = "dumb"
 os.environ["NO_COLOR"] = "1"
