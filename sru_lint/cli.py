@@ -211,5 +211,39 @@ def inspect():
     # TODO: Implement inspection logic
 
 
+@app.command("help")
+def help_cmd(
+    ctx: typer.Context,
+    command: Optional[list[str]] = typer.Argument(
+        None,
+        help="Show help for this app or a subcommand path, e.g. `help greet` or `help tools sub`.",
+    ),
+):
+    """Show the same help text as `--help`."""
+    # `ctx` here is the context of the `help` command. Its parent is the app context.
+    if not command:
+        # Root help (same as `myprog --help`)
+        typer.echo(ctx.parent.get_help())
+        raise typer.Exit()
+
+    # Resolve a nested command path (e.g. ["tools", "build"])
+    cmd = ctx.parent.command  # start at the app (click.MultiCommand)
+    target = None
+    info_parts: list[str] = []
+
+    for name in command:
+        info_parts.append(name)
+        target = cmd.get_command(ctx.parent, name)  # click API
+        if target is None:
+            typer.secho(f"Unknown command: {' '.join(info_parts)}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2)
+        cmd = target  # descend
+
+    # Show help for the resolved command
+    with typer.Context(target, info_name=" ".join(info_parts), parent=ctx.parent) as subctx:
+        typer.echo(target.get_help(subctx))
+    raise typer.Exit()
+
+
 if __name__ == "__main__":
     app()
