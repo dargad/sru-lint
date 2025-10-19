@@ -3,7 +3,7 @@ from sru_lint.common.patches import combine_added_lines, make_contains_filename_
 from sru_lint.plugins.plugin_base import Plugin
 import re
 
-from sru_lint.common.shared import DEBIAN_PATCHES
+from sru_lint.common.parse import DEBIAN_PATCHES
 
 
 class PatchFormat(Plugin):
