@@ -7,6 +7,10 @@ from sru_lint.cli import app
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.plugins.plugin_base import ProcessedFile
 
+import os
+os.environ["TERM"] = "dumb"
+os.environ["NO_COLOR"] = "1"
+os.environ["FORCE_COLOR"] = "0"
 
 class TestCLI(unittest.TestCase):
     def setUp(self):
