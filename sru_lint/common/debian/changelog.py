@@ -20,7 +20,3 @@ def parse_header(line: str) -> DebianChangelogHeader:
         series=m["series"].strip(),
         urgency=m["urgency"].strip(),
     )
-
-# Example
-hdr = parse_header("util-linux (2.41-4ubuntu5) UNRELEASED; urgency=medium")
-print(hdr)

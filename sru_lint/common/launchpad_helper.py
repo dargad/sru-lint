@@ -6,6 +6,8 @@ from launchpadlib.launchpad import Launchpad
 from typing import Optional, List, Set
 import re
 
+from sru_lint.common.logging import get_logger
+
 
 class LaunchpadHelper:
     """Singleton helper class for Launchpad interactions."""
@@ -22,6 +24,9 @@ class LaunchpadHelper:
     def __init__(self):
         """Initialize the LaunchpadHelper (only once due to singleton pattern)."""
         if self._launchpad is None:
+            self.logger = get_logger("launchpad_helper")
+            
+            self.logger.info("Initializing Launchpad connection")
             cachedir = "~/.launchpadlib/cache"
             self._launchpad = Launchpad.login_anonymously(
                 "sru-lint", 
@@ -31,6 +36,7 @@ class LaunchpadHelper:
             )
             self._ubuntu = self._launchpad.distributions["ubuntu"]
             self._archive = self._ubuntu.main_archive
+            self.logger.debug("Launchpad connection established")
     
     @property
     def launchpad(self) -> Launchpad:
@@ -58,9 +64,12 @@ class LaunchpadHelper:
             The bug object from Launchpad, or None if not found
         """
         try:
-            return self._launchpad.bugs[bug_number]
+            self.logger.debug(f"Fetching bug #{bug_number}")
+            bug = self._launchpad.bugs[bug_number]
+            self.logger.debug(f"Successfully fetched bug #{bug_number}")
+            return bug
         except Exception as e:
-            print(f"Error fetching bug #{bug_number}: {e}")
+            self.logger.error(f"Error fetching bug #{bug_number}: {e}")
             return None
     
     def is_bug_targeted(self, bug_number: int, package: str, distribution: str) -> bool:
@@ -79,14 +88,19 @@ class LaunchpadHelper:
         if not bug:
             return False
         
+        self.logger.debug(f"Checking if bug #{bug_number} is targeted at {package} in {distribution}")
+        
         for task in bug.bug_tasks:
-            print(f"Checking task: package={task.target.name}, bug_target_name={task.bug_target_name}")
+            self.logger.debug(f"Checking task: package={task.target.name}, bug_target_name={task.bug_target_name}")
             # Normalize distribution names for comparison
             package_match = task.target.name == package
             # Check if distribution is in bug_target_name (case-insensitive)
             dist_match = distribution.lower() in task.bug_target_name.lower()
             if package_match and dist_match:
+                self.logger.debug(f"Bug #{bug_number} is targeted at {package} in {distribution}")
                 return True
+        
+        self.logger.debug(f"Bug #{bug_number} is NOT targeted at {package} in {distribution}")
         return False
     
     def get_bug_tasks(self, bug_number: int) -> List:
@@ -102,7 +116,10 @@ class LaunchpadHelper:
         bug = self.get_bug(bug_number)
         if not bug:
             return []
-        return list(bug.bug_tasks)
+        
+        tasks = list(bug.bug_tasks)
+        self.logger.debug(f"Bug #{bug_number} has {len(tasks)} tasks")
+        return tasks
     
     def search_series(self, series_name: str):
         """
@@ -115,9 +132,12 @@ class LaunchpadHelper:
             The series object, or None if not found
         """
         try:
-            return self._ubuntu.getSeries(name_or_version=series_name)
+            self.logger.debug(f"Searching for series '{series_name}'")
+            series = self._ubuntu.getSeries(name_or_version=series_name)
+            self.logger.debug(f"Found series '{series_name}'")
+            return series
         except Exception as e:
-            print(f"Error fetching series '{series_name}': {e}")
+            self.logger.error(f"Error fetching series '{series_name}': {e}")
             return None
     
     def get_valid_distributions(self, include_pockets: bool = True) -> Set[str]:
@@ -133,26 +153,35 @@ class LaunchpadHelper:
             Set of valid distribution names (e.g., {'jammy', 'focal', 'jammy-proposed', ...})
         """
         if self._valid_distributions is not None and include_pockets:
+            self.logger.debug(f"Using cached distributions ({len(self._valid_distributions)} items)")
             return self._valid_distributions
+        
+        self.logger.info(f"Fetching valid distributions (include_pockets={include_pockets})")
         
         distributions = set()
         pockets = ['', '-proposed', '-updates', '-security', '-backports'] if include_pockets else ['']
         
         try:
             # Get all series (including current and supported releases)
+            series_count = 0
             for series in self._ubuntu.series:
                 # Only include series that are current or supported
                 if series.active:
                     series_name = series.name
+                    self.logger.debug(f"Adding active series: {series_name}")
                     for pocket in pockets:
                         distributions.add(f"{series_name}{pocket}")
+                    series_count += 1
             
             # Cache the full set (with pockets) for future use
             if include_pockets:
                 self._valid_distributions = distributions
+            
+            self.logger.info(f"Fetched {series_count} active series, generated {len(distributions)} distribution names")
                 
         except Exception as e:
-            print(f"Error fetching valid distributions: {e}")
+            self.logger.error(f"Error fetching valid distributions: {e}")
+            self.logger.warning("Using fallback distribution list")
             # Return a minimal set of known distributions as fallback
             distributions = {
                 'questing', 'questing-proposed', 'questing-updates', 'questing-security',
@@ -175,7 +204,9 @@ class LaunchpadHelper:
             True if the distribution is valid, False otherwise
         """
         valid_distributions = self.get_valid_distributions()
-        return distribution in valid_distributions
+        is_valid = distribution in valid_distributions
+        self.logger.debug(f"Distribution '{distribution}' is {'valid' if is_valid else 'invalid'}")
+        return is_valid
     
     @staticmethod
     def extract_lp_bugs(text: str) -> List[int]:
@@ -188,8 +219,11 @@ class LaunchpadHelper:
         Returns:
             List of bug numbers found in the text
         """
+        logger = get_logger("launchpad_helper")
         matches = re.findall(r"LP:\s*#(\d+)", text)
-        return [int(match) for match in matches]
+        bug_numbers = [int(match) for match in matches]
+        logger.debug(f"Extracted {len(bug_numbers)} LP bug numbers from text: {bug_numbers}")
+        return bug_numbers
 
 
 # Create a single global instance
@@ -204,5 +238,7 @@ def get_launchpad_helper() -> LaunchpadHelper:
     """
     global _launchpad_helper
     if _launchpad_helper is None:
+        logger = get_logger("launchpad_helper")
+        logger.debug("Creating new LaunchpadHelper instance")
         _launchpad_helper = LaunchpadHelper()
     return _launchpad_helper
