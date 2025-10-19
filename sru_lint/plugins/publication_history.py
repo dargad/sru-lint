@@ -1,4 +1,3 @@
-from sru_lint.common.launchpad_helper import get_launchpad_helper
 from sru_lint.common.patches import combine_added_lines
 from sru_lint.plugins.plugin_base import Plugin
 
