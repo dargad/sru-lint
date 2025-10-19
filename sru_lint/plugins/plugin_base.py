@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 import re
-from typing import List, Set, Callable, Optional
+from typing import List, Set, Optional
 import fnmatch
 
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.common.logging import get_logger
-
+from sru_lint.common.patch_processor import ProcessedFile
 
 class Plugin(ABC):
     """Base class for plugins that process patches (parsed by unidiff)."""
@@ -87,15 +87,15 @@ class Plugin(ABC):
         self.logger.debug(f"File {filepath} does not match any patterns: {self._file_patterns}")
         return False
 
-    def process(self, patches) -> List[FeedbackItem]:
+    def process(self, processed_files: List[ProcessedFile]) -> List[FeedbackItem]:
         """
-        Process the given patches and perform plugin-specific actions.
+        Process the given processed files and perform plugin-specific actions.
         
-        This method iterates through all patches and calls process_file()
+        This method iterates through all processed files and calls process_file()
         for each file that matches the registered patterns.
         
         Args:
-            patches: PatchSet object from unidiff containing all patches
+            processed_files: List of ProcessedFile objects
             
         Returns:
             List of FeedbackItem objects from all processed files
@@ -104,21 +104,24 @@ class Plugin(ABC):
         self.feedback.clear()
         self.logger.info(f"Starting processing with plugin {self.__symbolic_name__}")
         
-        processed_files = 0
-        for patched_file in patches:
-            filepath = patched_file.path
-            
-            # Check if this plugin handles this file
-            if self.matches_file(filepath):
-                self.logger.info(f"Processing file: {filepath}")
-                self.process_file(patched_file)
-                processed_files += 1
+        # Filter files that match this plugin's patterns
+        matching_files = [
+            pf for pf in processed_files 
+            if self.matches_file(pf.path)
+        ]
         
-        self.logger.info(f"Processed {processed_files} files, found {len(self.feedback)} issues")
+        self.logger.info(f"Processing {len(matching_files)} matching files out of {len(processed_files)} total")
+        
+        # Process each matching file
+        for processed_file in matching_files:
+            self.logger.info(f"Processing file: {processed_file.path}")
+            self.process_file(processed_file)
+        
+        self.logger.info(f"Processed {len(matching_files)} files, found {len(self.feedback)} issues")
         return self.feedback
 
     @abstractmethod
-    def process_file(self, patched_file) -> None:
+    def process_file(self, processed_file: ProcessedFile) -> None:
         """
         Process a single file that matches the plugin's registered patterns.
         
@@ -128,8 +131,8 @@ class Plugin(ABC):
         create_feedback() helper methods.
         
         Args:
-            patched_file: A PatchedFile object from unidiff representing the file
-                         with all its hunks and changes
+            processed_file: A ProcessedFile object containing the file path,
+                           source span with content, and original patch reference
         """
         raise NotImplementedError("Subclasses must implement process_file()")
 
@@ -160,8 +163,8 @@ class Plugin(ABC):
             message: The feedback message
             rule_id: The rule identifier
             severity: The severity level
-            source_span: The source span of the feedback (optional)
-            line_number: Specific line number (optional)
+            source_span: The source span to use (optional)
+            line_number: Specific line number (optional, overrides source_span)
             col_start: Column start position
             col_end: Column end position (optional)
             
@@ -169,48 +172,44 @@ class Plugin(ABC):
             The created FeedbackItem (also automatically added to self.feedback)
         """
         if source_span:
-            path = source_span.path
-            line_number = source_span.start_line
-            col_start = source_span.start_col
-            col_end = source_span.end_col
-            # Try to get reasonable line numbers from the patch
-            if line_number is None and source_span:
-                # Use the first modified line as default
-                for hunk in source_span:
-                    for line in hunk:
-                        if line.is_added or line.is_removed:
-                            line_number = line.target_line_no or line.source_line_no or 1
-                            break
-                    if line_number:
-                        break
+            # Use provided source span but allow overrides
+            feedback_span = SourceSpan(
+                path=source_span.path,
+                start_line=line_number or source_span.start_line,
+                start_col=col_start,
+                end_line=line_number or source_span.end_line,
+                end_col=col_end or col_start,
+                start_offset=0,
+                end_offset=0,
+                content=source_span.content,
+                content_with_context=source_span.content_with_context
+            )
         else:
-            path = "unknown"
-        
-        line_number = line_number or 1
-        col_end = col_end or col_start
+            # Create minimal span
+            feedback_span = SourceSpan(
+                path="unknown",
+                start_line=line_number or 1,
+                start_col=col_start,
+                end_line=line_number or 1,
+                end_col=col_end or col_start,
+                start_offset=0,
+                end_offset=0
+            )
         
         feedback_item = FeedbackItem(
             message=message,
-            span=SourceSpan(
-                path=path,
-                start_line=line_number,
-                start_col=col_start,
-                end_line=line_number,
-                end_col=col_end,
-                start_offset=0,  # Could be calculated if needed
-                end_offset=0
-            ),
+            span=feedback_span,
             rule_id=rule_id,
             severity=severity
         )
         
         # Log the feedback creation based on severity
         if severity == Severity.ERROR:
-            self.logger.error(f"[{rule_id}] {message} at {path}:{line_number}")
+            self.logger.error(f"[{rule_id}] {message} at {feedback_span.path}:{feedback_span.start_line}")
         elif severity == Severity.WARNING:
-            self.logger.warning(f"[{rule_id}] {message} at {path}:{line_number}")
+            self.logger.warning(f"[{rule_id}] {message} at {feedback_span.path}:{feedback_span.start_line}")
         else:
-            self.logger.info(f"[{rule_id}] {message} at {path}:{line_number}")
+            self.logger.info(f"[{rule_id}] {message} at {feedback_span.path}:{feedback_span.start_line}")
         
         self.add_feedback(feedback_item)
         return feedback_item
@@ -219,72 +218,50 @@ class Plugin(ABC):
         self,
         message: str,
         rule_id: str,
-        source_span: Optional[SourceSpan],
+        source_span: SourceSpan,
         target_line_content: str,
         severity: Severity = Severity.ERROR
     ) -> FeedbackItem:
         """
-        Create feedback for a specific line content found in the patch.
-        
-        This method searches through the patch to find the exact line number
-        where the content appears.
+        Create feedback for a specific line content found in the source span.
         
         Args:
             message: The feedback message
             rule_id: The rule identifier
-            source_span: The source span of the feedback
+            source_span: The source span to search in
             target_line_content: The line content to search for
             severity: The severity level
             
         Returns:
             The created FeedbackItem (also automatically added to self.feedback)
         """
-        line_number = 1
+        line_number = source_span.start_line
         col_start = 1
         col_end = len(target_line_content)
         
         self.logger.debug(f"Searching for line content: '{target_line_content}' in {source_span.path}")
         
-        # Search for the line in the patch
+        # Search for the line in the source span content
         found = False
-        for hunk in source_span:
-            for line in hunk:
-                if target_line_content in line.value:
-                    line_number = line.target_line_no or line.source_line_no or 1
-                    # Find column position of the content
-                    col_start = line.value.find(target_line_content) + 1
-                    col_end = col_start + len(target_line_content)
-                    found = True
-                    self.logger.debug(f"Found target content at line {line_number}, col {col_start}-{col_end}")
-                    break
-            if found:
+        for line in source_span.content_with_context:
+            if target_line_content in line.content:
+                line_number = line.line_number or line_number
+                # Find column position of the content
+                col_start = line.content.find(target_line_content) + 1
+                col_end = col_start + len(target_line_content)
+                found = True
+                self.logger.debug(f"Found target content at line {line_number}, col {col_start}-{col_end}")
                 break
         
         if not found:
-            self.logger.warning(f"Target line content '{target_line_content}' not found in patch, using defaults")
+            self.logger.warning(f"Target line content '{target_line_content}' not found in source span, using defaults")
         
-        feedback_item = FeedbackItem(
+        return self.create_feedback(
             message=message,
-            span=SourceSpan(
-                path=source_span.path,
-                start_line=line_number,
-                start_col=col_start,
-                end_line=line_number,
-                end_col=col_end,
-                start_offset=0,
-                end_offset=0
-            ),
             rule_id=rule_id,
-            severity=severity
+            severity=severity,
+            source_span=source_span,
+            line_number=line_number,
+            col_start=col_start,
+            col_end=col_end
         )
-        
-        # Log the feedback creation based on severity
-        if severity == Severity.ERROR:
-            self.logger.error(f"[{rule_id}] {message} at {source_span.path}:{line_number}")
-        elif severity == Severity.WARNING:
-            self.logger.warning(f"[{rule_id}] {message} at {source_span.path}:{line_number}")
-        else:
-            self.logger.info(f"[{rule_id}] {message} at {source_span.path}:{line_number}")
-
-        self.add_feedback(feedback_item)
-        return feedback_item

@@ -123,3 +123,130 @@ def create_source_span(patched_file, ) -> SourceSpan:
         start_offset=0,
         end_offset=sum(len(line.value) + 1 for hunk in patched_file for line in hunk)  # +1 for newlines
     )
+
+from dataclasses import dataclass
+from typing import List, Optional
+from enum import Enum
+
+
+class Severity(Enum):
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
+
+
+@dataclass
+class SourceLine:
+    """Represents a single line in the source with context information."""
+    content: str
+    line_number: Optional[int]  # Target line number from patch
+    is_added: bool = False
+    is_removed: bool = False
+    is_context: bool = False
+
+
+@dataclass
+class SourceSpan:
+    """Represents a span in source code with content and location information."""
+    path: str
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+    start_offset: int = 0
+    end_offset: int = 0
+    
+    # Content information from patch
+    content: List[SourceLine] = None  # Only added lines
+    content_with_context: List[SourceLine] = None  # Added lines + context
+    
+    def __post_init__(self):
+        """Initialize content lists if not provided."""
+        if self.content is None:
+            self.content = []
+        if self.content_with_context is None:
+            self.content_with_context = []
+    
+    @property
+    def lines_added(self) -> List[SourceLine]:
+        """Get only the added lines from content_with_context."""
+        return [line for line in self.content_with_context if line.is_added]
+    
+    @property
+    def lines_with_context(self) -> List[SourceLine]:
+        """Get only the context lines from content_with_context."""
+        return [line for line in self.content_with_context if line.is_added or line.is_context]
+    
+    def get_line_content(self, line_number: int) -> Optional[str]:
+        """Get content of a specific line number."""
+        for line in self.content_with_context:
+            if line.line_number == line_number:
+                return line.content
+        return None
+
+
+@dataclass
+class FeedbackItem:
+    """Represents a single piece of feedback from a plugin."""
+    message: str
+    span: SourceSpan
+    rule_id: str
+    severity: Severity = Severity.ERROR
+    
+    def __str__(self) -> str:
+        """String representation of the feedback item."""
+        location = f"{self.span.path}:{self.span.start_line}:{self.span.start_col}"
+        return f"{location}: {self.severity.value}: [{self.rule_id}] {self.message}"
+
+
+def create_source_span_from_patch(patched_file, include_context: bool = True) -> SourceSpan:
+    """
+    Create a SourceSpan from a unidiff PatchedFile.
+    
+    Args:
+        patched_file: PatchedFile object from unidiff
+        include_context: Whether to include context lines
+        
+    Returns:
+        SourceSpan with content extracted from the patch
+    """
+    content = []  # Only added lines
+    content_with_context = []  # Added lines + context
+    
+    # Extract lines from all hunks
+    for hunk in patched_file:
+        for line in hunk:
+            source_line = SourceLine(
+                content=line.value.rstrip('\n'),
+                line_number=line.target_line_no,
+                is_added=line.is_added,
+                is_removed=line.is_removed,
+                is_context=line.is_context
+            )
+            
+            # Add to content if it's an added line
+            if line.is_added:
+                content.append(source_line)
+            
+            # Add to content_with_context if it's added or (context and we want context)
+            if line.is_added or (include_context and line.is_context):
+                content_with_context.append(source_line)
+    
+    # Determine start and end lines
+    start_line = 1
+    end_line = 1
+    if content_with_context:
+        line_numbers = [line.line_number for line in content_with_context if line.line_number]
+        if line_numbers:
+            start_line = min(line_numbers)
+            end_line = max(line_numbers)
+    
+    return SourceSpan(
+        path=patched_file.path,
+        start_line=start_line,
+        start_col=1,
+        end_line=end_line,
+        end_col=1,
+        content=content,
+        content_with_context=content_with_context
+    )

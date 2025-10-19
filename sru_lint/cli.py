@@ -1,9 +1,10 @@
 from typing import Optional
 import logging
 
-import unidiff
+from sru_lint.common.ui.snippet import render_snippet
 from sru_lint.plugin_manager import PluginManager
 from sru_lint.common.logging import setup_logger, get_logger
+from sru_lint.common.patch_processor import process_patch_content
 import typer
 
 # Global state for CLI options
@@ -88,11 +89,19 @@ def check(
     expanded_modules = [m for m in expanded_modules if m]
     logger.debug(f"Modules to run: {expanded_modules}")
     
-    # Read and parse patch
+    # Read and process patch
     patch_content = infile.read()
-    patchset = unidiff.PatchSet(patch_content)
-    logger.info(f"Parsed {len(patchset)} files from patch")
+    logger.debug(f"Read {len(patch_content)} characters from input")
+    
+    # Convert patch to ProcessedFile objects
+    processed_files = process_patch_content(patch_content)
+    if not processed_files:
+        logger.error("No files found in patch or failed to parse patch")
+        raise typer.Exit(code=2)
+    
+    logger.info(f"Converted patch to {len(processed_files)} processed files")
 
+    # Load and filter plugins
     pm = PluginManager()
     plugins = pm.load_plugins()
     logger.debug(f"Loaded {len(plugins)} plugins")
@@ -112,10 +121,11 @@ def check(
     
     logger.info(f"Running {len(plugins)} plugins")
     
+    # Run plugins on processed files
     feedback = []
     for plugin in plugins:
         logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-        plugin_feedback = plugin.process(patchset)
+        plugin_feedback = plugin.process(processed_files)
         feedback.extend(plugin_feedback)
         logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
     
@@ -139,6 +149,14 @@ def check(
                 }.get(item.severity.value, None)
                 
                 typer.secho(f"- {item.message} (Severity: {item.severity.value})", fg=severity_color)
+
+                render_snippet(
+                    code="\n".join([line.content for line in item.span.lines_added]),
+                    title=f"File: {item.span.path}",
+                    highlight_lines=[3],
+                    annotations={3: [item.message]},
+                    # target_line_number=item.line_number
+                )
         else:
             typer.secho("✅ No issues found", fg=typer.colors.GREEN)
     
@@ -189,40 +207,6 @@ def inspect():
     logger.info("Starting patch inspection")
     typer.echo("Inspecting code...")
     # TODO: Implement inspection logic
-
-
-@app.command()
-def help(
-    ctx: typer.Context,
-    command: Optional[list[str]] = typer.Argument(
-        None,
-        help="Show help for this app or a subcommand path, e.g. `help greet` or `help tools sub`.",
-    )
-):
-    """Show the same help text as `--help`."""
-    # `ctx` here is the context of the `help` command. Its parent is the app context.
-    if not command:
-        # Root help (same as `myprog --help`)
-        typer.echo(ctx.parent.get_help())
-        raise typer.Exit()
-
-    # Resolve a nested command path (e.g. ["tools", "build"])
-    cmd = ctx.parent.command  # start at the app (click.MultiCommand)
-    target = None
-    info_parts: list[str] = []
-
-    for name in command:
-        info_parts.append(name)
-        target = cmd.get_command(ctx.parent, name)  # click API
-        if target is None:
-            typer.secho(f"Unknown command: {' '.join(info_parts)}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=2)
-        cmd = target  # descend
-
-    # Show help for the resolved command
-    with typer.Context(target, info_name=" ".join(info_parts), parent=ctx.parent) as subctx:
-        typer.echo(target.get_help(subctx))
-    raise typer.Exit()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, create_source_span
+from sru_lint.common.parse import find_offset
 from sru_lint.common.ui.snippet import render_snippet
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.patches import combine_added_lines
@@ -16,63 +17,61 @@ class ChangelogEntry(Plugin):
         """Register that we want to check debian/changelog files."""
         self.add_file_pattern("debian/changelog")
 
-    def process_file(self, patched_file) -> None:
+    def process_file(self, processed_file) -> None:
         """
-        Checks done in the changelog entry:
-        - Check if the distribution is valid
-        - Check if LP bugs are properly targeted
+        Process a changelog file using the decoupled source span structure.
         """
         self.logger.info("Processing changelog entry")
+        
+        source_span = processed_file.source_span
 
-        content = combine_added_lines(patched_file)
-        content_with_context = combine_added_lines(patched_file, include_context=True)
+        self.check_changelog_headers(processed_file, source_span)
 
-        # Parse changelog headers for version ordering
-        changelog_headers = []
-        for k in content_with_context:
-            file_content = content_with_context[k]
-
-            for line_no, line in enumerate(file_content.splitlines(), 1):
-                try:
-                    header = parse_header(line)
-                    changelog_headers.append(header)
-                except ValueError:
-                    continue
-
-        # Check version ordering
-        if len(changelog_headers) > 1:
-            version_errors = self.check_version_order(patched_file, changelog_headers)
-
-        self.logger.debug(f"Found {len(changelog_headers)} changelog headers")
-
-
-        for k in content:
-            cl = changelog.Changelog(content[k])
-
-            # Check distribution validity
-            if not self.check_distribution(cl.distributions):
-                self.create_feedback(
-                    message=f"Invalid distribution '{cl.distributions}'",
-                    rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
-                    severity=Severity.ERROR,
-                    source_span=create_source_span(patched_file)
-                )
-                self.logger.error(f"Invalid distribution: '{cl.distributions}'")
-
-            # Check LP bug targeting
-            lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
-            for lpbug in lpbugs:
-                self.logger.info(f"Checking LP Bug: #{lpbug}")
+        # Get content from the source span (only added lines)
+        added_content = "\n".join(line.content for line in source_span.lines_added)
+        
+        # Parse changelog from added content
+        if added_content.strip():
+            try:
+                cl = changelog.Changelog(added_content)
                 
-                if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
+                # Check distribution validity
+                if not self.check_distribution(cl.distributions):
                     self.create_feedback(
-                        message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
-                        rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
+                        message=f"Invalid distribution '{cl.distributions}'",
+                        rule_id="CHANGELOG001",
                         severity=Severity.ERROR,
-                        source_span=create_source_span(patched_file),
-                        # target_line_content=f"LP: #{lpbug}"
+                        source_span=source_span
                     )
-                    self.logger.error(f"Bug {lpbug} not properly targeted")
+                
+                # Check LP bugs
+                lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
+                for lpbug in lpbugs:
+                    offset = find_offset(source_span.lines_added, f"LP: #{lpbug}")
+                    print(f"Checking LP bug #{lpbug} at offset {offset}")
+                    if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
+                        self.create_line_feedback(
+                            message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
+                            rule_id="CHANGELOG002",
+                            severity=Severity.ERROR,
+                            source_span=source_span,
+                            target_line_content=f"LP: #{lpbug}"
+                        )
+                        
+            except Exception as e:
+                self.logger.error(f"Failed to parse changelog: {e}")
+
+    def check_changelog_headers(self, processed_file, source_span):
+        headers = []
+        for line in source_span.lines_with_context:
+            try:
+                header = parse_header(line.content)
+                if header:
+                    headers.append(header)
+            except Exception as e:
+                continue
+        if len(headers) > 1:
+            self.check_version_order(processed_file, headers)
 
     def check_distribution(self, distributions):
         """Check if the distribution field in the changelog is valid."""
@@ -81,6 +80,9 @@ class ChangelogEntry(Plugin):
     def check_version_order(self, patched_file, headers: list[DebianChangelogHeader]) -> list[FeedbackItem]:
         """Check that versions are in descending order."""
         
+        self.logger.debug("Checking changelog version order")
+        errors_found = False
+
         for idx, (prev, curr) in enumerate(zip(headers, headers[1:])):
             v_prev = Version(prev.version)
             v_curr = Version(curr.version)
@@ -95,3 +97,9 @@ class ChangelogEntry(Plugin):
                     source_span=create_source_span(patched_file),
                     line_number=line_number
                 )
+                errors_found = True
+
+        if not errors_found:
+            self.logger.info("Changelog versions are in correct order")
+
+        
