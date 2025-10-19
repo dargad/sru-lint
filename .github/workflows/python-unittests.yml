@@ -21,6 +21,11 @@ jobs:
 
       - name: Set up Poetry
         uses: abatilo/actions-poetry@v3
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          poetry install
 
       - name: Run unit tests
         run: |
