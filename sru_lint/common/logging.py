@@ -52,7 +52,7 @@ def setup_logger(name: str = "sru-lint", level: int = logging.INFO) -> logging.L
     logger.setLevel(level)
     
     # Create console handler
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(level)
     
     # Create formatter
