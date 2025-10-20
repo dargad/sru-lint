@@ -5,33 +5,33 @@ Static checks for Ubuntu SRU (Stable Release Update) patches — built to run in
 - **`sru-lint`**: the fast, scriptable checker (exit codes for CI).
 - **`sru-inspect`**: the viewer (renders JSON reports to minimal HTML with annotations).
 
-Under the hood, `sru-lint` parses patches with [`unidiff`](https://pypi.org/project/unidiff/), runs a set of **plugins**, and emits a structured **FeedbackReport** you can render or post-process.
+Under the hood, `sru-lint` parses patches with [`unidiff`](https://pypi.org/project/unidiff/), runs a set of **plugins**, and emits structured **FeedbackItem**s you can render or post-process.
 
 ---
 
 ## Features
 
 - 🔌 **Plugin architecture**: drop-in checks under `sru_lint.plugins.*`.
-- 📄 **Precise locations**: line/column + byte offsets for robust highlighting.
-- 🧰 **Extensible report schema**: JSON-serializable `FeedbackReport`.
-- 🖥️ **Two UIs**: machine-readable JSON for pipelines, HTML for humans.
-- 🧪 **Tests included** (`pytest`).
+- 📄 **Precise locations**: line/column spans with content context for robust highlighting.
+- 🧰 **Extensible feedback system**: JSON-serializable `FeedbackItem` with severity levels.
+- 🖥️ **Two UIs**: machine-readable JSON for pipelines, console output with snippets for humans.
+- 🧪 **Tests included** (unittest).
 
 ---
 
 ## Install
 
 ```bash
-# Local dev (editable)
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"     # if you defined a 'dev' extra; otherwise:
-pip install -e .
+# Using Poetry (recommended for development)
+git clone https://github.com/dargad/sru-lint.git
+cd sru-lint
+poetry install
 
-# or with pipx (isolated)
-pipx install .
+# Using pip
+pip install sru-lint
 ```
 
-> Requires Python 3.10+.
+> Requires Python 3.8+.
 
 ---
 
@@ -40,21 +40,27 @@ pipx install .
 Lint a patch file:
 
 ```bash
-sru-lint path/to/patch.diff --format json > report.json
+# Using Poetry
+poetry run sru-lint check path/to/patch.debdiff
+
+# Console output (default)
+poetry run sru-lint check path/to/patch.debdiff --format console
+
+# JSON output for machine processing
+poetry run sru-lint check path/to/patch.debdiff --format json > report.json
 ```
 
 From stdin:
 
 ```bash
-git show -p HEAD | sru-lint - --format json > report.json
+cat patch.debdiff | poetry run sru-lint check -
+git show -p HEAD | poetry run sru-lint check -
 ```
 
-Render HTML:
+List available plugins:
 
 ```bash
-sru-inspect report.json --html out.html
-# or open in your browser:
-sru-inspect report.json --open
+poetry run sru-lint plugins
 ```
 
 ---
@@ -64,85 +70,85 @@ sru-inspect report.json --open
 ### `sru-lint` (checker)
 
 ```
-Usage: sru-lint [FILE|-] [options]
-
-Arguments:
-  FILE                   Patch file to read, or "-" for stdin (default: "-")
+Usage: sru-lint [OPTIONS] COMMAND [ARGS]...
 
 Options:
-  --format [text|json]   Output format (default: text)
-  --severity-threshold [info|warning|error]
-                         Fail if any finding ≥ threshold (default: error)
-  --debian-changelog PATH
-                         Override changelog path tail (default: debian/changelog)
-  --rule-set NAME        Select a ruleset (future-proof; default: default)
+  -v, --verbose INTEGER   Increase verbosity (use multiple times for more verbose)
   -q, --quiet            Suppress non-essential output
-  -v, --version
-  -h, --help
+  --help                 Show this message and exit
+
+Commands:
+  check     Run the linter on the specified patch
+  plugins   List all available plugins
+  inspect   Inspect the patch and generate a HTML report (TODO)
+  help      Show help for commands
+```
+
+#### `check` command
+
+```
+Usage: sru-lint check [OPTIONS] [FILE]
+
+Arguments:
+  FILE  File to read, or '-' for stdin [default: -]
+
+Options:
+  -m, --modules TEXT     Only run the specified module(s). Default is 'all'. 
+                         Can be specified as comma-separated list or multiple times
+  -f, --format [console|json]  
+                         Output format: 'console' for human-readable output with 
+                         snippets, 'json' for machine-readable JSON array 
+                         [default: console]
+  --help                 Show this message and exit
 ```
 
 **Exit codes**
-- `0` – no findings at/above threshold
-- `1` – findings at/above threshold
-- `2` – usage or internal error
-
-### `sru-inspect` (viewer)
-
-```
-Usage: sru-inspect REPORT.json [options]
-
-Options:
-  --html PATH            Write an HTML file
-  --open                 Render a temp HTML and open in default browser
-  -h, --help
-```
+- `0` – no errors found
+- `1` – errors found
+- `2` – no files found in patch or failed to parse patch
 
 ---
 
-## What it checks (conceptually)
+## What it checks
 
-Checks are implemented as **plugins**. You’ll see these placeholders out of the box:
+Checks are implemented as **plugins**. Current plugins include:
 
-- `ChangelogEntry` – validations around `debian/changelog`.
-- `VersionNumber` – version bump semantics.
-- `PublicationHistory` – SRU metadata/history.
-- `PatchFormat` – unified diff shape, headers, trailers, etc.
-
-> The stub classes are empty on purpose — you implement the logic.
+- **`changelog-entry`** – Validates `debian/changelog` entries (distributions, LP bugs, version order)
+- **`patch-format`** – Checks DEP-3 compliance for patches in `debian/patches/`
+- **`publication-history`** – Checks if versions are already published (TODO)
+- **`upload-queue`** – Checks if versions are in the upload queue (TODO)
 
 ---
 
-## Report schema (summary)
+## Report schema
 
-Findings are emitted as a `FeedbackReport` containing `FeedbackItem`s with precise `SourceSpan`s.
+Findings are emitted as `FeedbackItem`s with precise `SourceSpan`s:
 
 ```json
-{
-  "tool_name": "sru-lint",
-  "tool_version": "0.1.0",
-  "summary": { "error": 1, "warning": 2 },
-  "items": [
-    {
-      "id": "ef76…",
-      "rule_id": "FMT001",
-      "severity": "warning",
-      "message": "Keys should be snake_case.",
-      "hint": "Use 'site_title'",
-      "doc_url": "https://example.test/rules/FMT001",
-      "span": {
-        "path": "debian/changelog",
-        "start_line": 12, "start_col": 5,
-        "end_line": 12,   "end_col": 14,
-        "start_offset": 238, "end_offset": 247
-      },
-      "tags": ["style","yaml"],
-      "fixits": []
+[
+  {
+    "message": "Invalid distribution 'invalid-dist'",
+    "rule_id": "CHANGELOG001", 
+    "severity": "error",
+    "span": {
+      "path": "debian/changelog",
+      "start_line": 1,
+      "start_col": 1, 
+      "end_line": 1,
+      "end_col": 1,
+      "content": [
+        {
+          "content": "package (1.0-1ubuntu1) invalid-dist; urgency=medium",
+          "line_number": 1,
+          "is_added": true
+        }
+      ]
     }
-  ]
-}
+  }
+]
 ```
 
-The included minimal HTML template highlights spans and shows an annotation panel. `sru-inspect` uses it under the hood.
+Console output shows snippets with line numbers and highlights for human-friendly debugging.
 
 ---
 
@@ -151,86 +157,120 @@ The included minimal HTML template highlights spans and shows an annotation pane
 ### Base interface
 
 ```python
-# src/sru_lint/plugin_base.py
-from abc import ABC, abstractmethod
-from unidiff import PatchSet  # type: ignore[import-not-found]
+from sru_lint.plugins.plugin_base import Plugin
+from sru_lint.common.feedback import FeedbackItem, Severity
+from sru_lint.common.errors import ErrorCode
 
-class Plugin(ABC):
-    """Interface for a patch-processing plugin."""
-    name: str = "plugin"
-
-    @abstractmethod
-    def process(self, patch: PatchSet, report) -> None:
-        """Analyze the PatchSet and add findings to the report."""
-        raise NotImplementedError
+class MyPlugin(Plugin):
+    """Description of what this plugin checks."""
+    
+    def __init__(self):
+        super().__init__()
+        self.logger = get_logger("plugins.my-plugin")
+    
+    def register_file_patterns(self):
+        """Register file patterns this plugin should process."""
+        self.add_file_pattern("debian/control")
+        self.add_file_pattern("*.py")
+    
+    def process_file(self, processed_file):
+        """Process a single file."""
+        # Your validation logic here
+        if some_condition:
+            feedback = FeedbackItem(
+                message="Issue description",
+                rule_id=ErrorCode.MY_ERROR_CODE,
+                severity=Severity.ERROR,
+                span=processed_file.source_span
+            )
+            self.feedback.append(feedback)
 ```
 
-> `report` is your `FeedbackReport` (or a façade exposing `add()`).
-
-### Built-in (empty) plugins
+### Built-in plugins
 
 ```python
-# src/sru_lint/plugins/changelog_entry.py
-from sru_lint.plugin_base import Plugin
-
+# sru_lint/plugins/changelog_entry.py
 class ChangelogEntry(Plugin):
-    name = "changelog-entry"
-    def process(self, patch, report):  # implement me
-        pass
+    """Checks changelog entries for valid distributions, LP bugs, version order."""
+    
+    def register_file_patterns(self):
+        self.add_file_pattern("debian/changelog")
+    
+    def process_file(self, processed_file):
+        # Validates distributions, checks LP bug targeting, etc.
 ```
 
-Similarly: `VersionNumber`, `PublicationHistory`, `PatchFormat`.
+```python
+# sru_lint/plugins/patch_format.py  
+class PatchFormat(Plugin):
+    """Checks DEP-3 compliance for patches."""
+    
+    def register_file_patterns(self):
+        self.add_file_pattern("debian/patches/*")
+    
+    def process_file(self, processed_file):
+        # Validates DEP-3 headers: Description, Author/Origin, etc.
+```
 
 ### Discovery
 
-`PluginManager` loads all subclasses of `Plugin` from `sru_lint.plugins` and instantiates one of each. Any new class you add under that package is picked up automatically.
+`PluginManager` automatically discovers all subclasses of `Plugin` from `sru_lint.plugins` and nested packages. Any new plugin class is picked up automatically.
 
 ---
 
-## Configuration
+## Error Codes
 
-### Make “changelog path” configurable (still a 1-arg matcher)
+Error codes are defined in `sru_lint.common.errors.ErrorCode`:
 
-If you need a callable `filename -> bool` but want the path to be configurable:
-
-```python
-from pathlib import PurePath
-from typing import Callable, Union, os
-PathLike = Union[str, os.PathLike[str]]
-
-def make_changelog_matcher(changelog_path: str = "debian/changelog") -> Callable[[PathLike], bool]:
-    tail = tuple(PurePath(changelog_path).parts)
-    def match(filename: PathLike) -> bool:
-        parts = PurePath(str(filename)).parts
-        return len(parts) >= len(tail) and tuple(parts[-len(tail):]) == tail
-    return match
-
-# default matcher
-match_changelog = make_changelog_matcher()
-```
-
-`--debian-changelog` on `sru-lint` can rebind this at startup.
+- **CHANGELOG001** - Invalid distribution
+- **CHANGELOG002** - Bug not targeted to distribution  
+- **CHANGELOG003** - Version order error
+- **PATCH_DEP3_FORMAT** - General DEP-3 format issue
+- **PATCH_DEP3_MISSING_DESCRIPTION** - Missing Description/Subject field
+- **PATCH_DEP3_EMPTY_DESCRIPTION** - Empty description field
+- **PATCH_DEP3_MISSING_ORIGIN_AUTHOR** - Missing Origin or Author field
+- **PATCH_DEP3_INVALID_DATE** - Invalid Last-Update date format
+- **PATCH_DEP3_INVALID_FORWARDED** - Invalid Forwarded field
 
 ---
 
 ## Usage examples
 
-Lint a patch and fail CI on warnings or worse:
+Lint a patch and get console output:
 
 ```bash
-sru-lint my.patch --format json --severity-threshold warning > report.json
+poetry run sru-lint check my.patch
 ```
 
-Render to HTML and open:
+Check only changelog entries:
 
 ```bash
-sru-inspect report.json --open
+poetry run sru-lint check -m changelog-entry my.patch
 ```
 
-Pipe from `git`:
+Get JSON output for machine processing:
 
 ```bash
-git show -p origin/stable..HEAD | sru-lint - --format text
+poetry run sru-lint check --format json my.patch > report.json
+```
+
+Quiet mode (suppress logging):
+
+```bash
+poetry run sru-lint -q check my.patch
+```
+
+Verbose mode for debugging:
+
+```bash
+poetry run sru-lint -v check my.patch
+poetry run sru-lint -vv check my.patch  # extra verbose
+```
+
+Pipe from git:
+
+```bash
+git show -p origin/stable..HEAD | poetry run sru-lint check -
 ```
 
 ---
@@ -240,50 +280,66 @@ git show -p origin/stable..HEAD | sru-lint - --format text
 ### Setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pre-commit install  # if you add a config
+git clone https://github.com/dargad/sru-lint.git
+cd sru-lint
+poetry install
 ```
-
-Suggested (optional) dev deps:
-- `pytest`, `pytest-cov`
-- `ruff` (lint), `mypy` (types)
-- `unidiff`
 
 ### Run tests
 
 ```bash
-pytest -q
+# All tests
+poetry run python -m unittest discover -s tests
+
+# Specific test file  
+poetry run python -m unittest tests.test_changelog_entry
+
+# With coverage
+poetry run coverage run -m unittest discover -s tests
+poetry run coverage report
 ```
 
-### Project layout (abridged)
+### Project layout
 
 ```
-src/
-  sru_lint/
-    __init__.py
-    cli.py                 # exposes linter_main() and inspect_main()
-    html_report.py         # minimal HTML renderer
-    plugin_base.py         # Plugin interface
-    plugin_manager.py      # dynamic discovery
-    plugins/
-      __init__.py
-      changelog_entry.py
-      version_number.py
-      publication_history.py
-      patch_format.py
-tests/
-  test_cli.py
-  test_plugins.py
-  test_html_report.py
+sru-lint/
+├── sru_lint/                  # Main package
+│   ├── cli.py                 # Command-line interface (Typer-based)
+│   ├── plugin_manager.py      # Plugin loading and management
+│   ├── plugins/               # Built-in plugins
+│   │   ├── changelog_entry.py # Changelog validation
+│   │   ├── patch_format.py    # DEP-3 patch format checking
+│   │   ├── publication_history.py
+│   │   ├── upload_queue.py
+│   │   └── nested/            # Nested plugin example
+│   │       └── dummy_plugin.py
+│   └── common/                # Shared utilities
+│       ├── feedback.py        # Feedback and error reporting
+│       ├── errors.py          # Error codes and enum serialization
+│       ├── logging.py         # Logging configuration
+│       ├── patch_processor.py # Patch parsing and ProcessedFile creation
+│       ├── debian/            # Debian-specific utilities
+│       │   ├── changelog.py   # Changelog parsing
+│       │   └── dep3.py        # DEP-3 compliance checking
+│       └── ui/
+│           └── snippet.py     # Code snippet rendering
+├── tests/                     # Unit tests
+│   ├── test_changelog_entry.py
+│   ├── test_patch_format.py
+│   ├── test_cli.py
+│   └── ...
+├── pyproject.toml            # Poetry configuration
+├── HACKING.md               # Development documentation
+└── README.md
 ```
 
-### Console scripts (in `pyproject.toml`)
+### Console entry points
+
+The CLI is built with [Typer](https://typer.tiangolo.com/) and configured in `pyproject.toml`:
 
 ```toml
 [project.scripts]
-sru-lint = "sru_lint.cli:linter_main"
-sru-inspect = "sru_lint.cli:inspect_main"
+sru-lint = "sru_lint.cli:app"
 ```
 
 ---
@@ -291,8 +347,10 @@ sru-inspect = "sru_lint.cli:inspect_main"
 ## Contributing
 
 - Open an issue for substantial changes.
-- Add tests for new behavior.
+- Add tests for new behavior in the `tests/` directory.
 - Keep plugins single-purpose and fast (they run in CI).
+- Follow the existing plugin patterns and error code conventions.
+- See [HACKING.md](HACKING.md) for detailed development guidelines.
 
 ---
 
@@ -305,10 +363,16 @@ Specify your license (e.g., MIT, Apache-2.0) in `LICENSE`.
 ## FAQ
 
 **Why two commands?**  
-`sru-lint` matches “linter” expectations in CI; `sru-inspect` focuses on human-friendly triage and doesn’t affect build status.
+`sru-lint` matches "linter" expectations in CI; `sru-inspect` focuses on human-friendly triage and doesn't affect build status.
 
 **Can I add my own checks?**  
-Yes — create a new class under `sru_lint.plugins` that subclasses `Plugin`. The manager discovers it automatically.
+Yes — create a new class under `sru_lint.plugins` that subclasses `Plugin`. The manager discovers it automatically. See the plugin examples and [HACKING.md](HACKING.md).
 
 **Do I need to dump JSON to view HTML?**  
 By design, yes: JSON is the interchange format. That also lets you archive/report results independently of source code.
+
+**How do I run only specific plugins?**  
+Use the `-m`/`--modules` option: `sru-lint check -m changelog-entry,patch-format my.patch`
+
+**What's the difference between console and JSON output?**  
+Console output shows human-friendly snippets with syntax highlighting and context. JSON output provides structured data suitable for machine processing and integration with other tools.
