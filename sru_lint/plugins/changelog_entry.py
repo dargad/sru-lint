@@ -93,7 +93,7 @@ class ChangelogEntry(Plugin):
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
                     severity=Severity.ERROR,
                     source_span=processed_file.source_span,
-                    target_line_content=curr.version
+                    target_line_content=prev.version
                 )
                 errors_found = True
 
