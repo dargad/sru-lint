@@ -115,8 +115,6 @@ class UploadQueue(Plugin):
                                 severity=Severity.WARNING,  # Could be ERROR depending on policy
                                 source_span=source_span
                             )
-                            
-                            self.feedback.append(feedback)
                     else:
                         self.logger.info(f"✅ No review-queue uploads for {package_name} in {ds.name} (good for new uploads)")
                         

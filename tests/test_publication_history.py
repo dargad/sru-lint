@@ -147,7 +147,7 @@ class TestPublicationHistory(unittest.TestCase):
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
         self.assertEqual(feedback.rule_id, ErrorCode.PUBLICATION_HISTORY_ALREADY_PUBLISHED)
-        self.assertEqual(feedback.severity, Severity.WARNING)
+        self.assertEqual(feedback.severity, Severity.ERROR)
         self.assertIn("already published", feedback.message)
         self.assertIn("focal/Release/Published", feedback.message)
 
