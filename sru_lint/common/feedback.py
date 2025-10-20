@@ -183,6 +183,11 @@ class SourceSpan:
             if line.line_number == line_number:
                 return line.content
         return None
+    
+    def is_empty(self) -> bool:
+        """Check if the span has no added content."""
+        return len(self.lines_added) == 0 or all(line.content.strip() == "" for line in self.lines_added)
+
 
 
 @dataclass

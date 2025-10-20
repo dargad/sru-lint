@@ -184,18 +184,19 @@ def check(
                         "warning": typer.colors.YELLOW,
                         "info": typer.colors.BLUE,
                     }.get(item.severity.value, None)
-                    
-                    typer.secho(f"- {item.message} (Severity: {item.severity.value})", fg=severity_color)
 
-                    print(f"Item span: {item.span.start_line}-{item.span.end_line} in {item.span.path}")
-                    render_snippet(
-                        code="\n".join([line.content for line in item.span.lines_added]),
-                        title=f"File: {item.span.path}",
-                        highlight_lines=[item.span.start_line] if item.span.start_line >= 0 else [],
-                        annotations={
-                            item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
-                        }
-                    )
+                    typer.secho(f"- {item.message} (Severity: {item.severity.value}): {item.span.path}", fg=severity_color)
+
+                    if not item.span.is_empty():
+                        print(f"Item span: {item.span.start_line}-{item.span.end_line} in {item.span.path}")
+                        render_snippet(
+                            code="\n".join([line.content for line in item.span.lines_added]),
+                            title=f"File: {item.span.path}",
+                            highlight_lines=[item.span.start_line] if item.span.start_line >= 0 else [],
+                            annotations={
+                                item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
+                            }
+                        )
             else:
                 typer.secho("✅ No issues found", fg=typer.colors.GREEN)
     
