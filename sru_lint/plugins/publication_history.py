@@ -1,5 +1,5 @@
 from sru_lint.plugins.plugin_base import Plugin
-from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, SourceLine
+from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.logging import get_logger
 from debian import changelog
@@ -59,14 +59,12 @@ class PublicationHistory(Plugin):
                 content_with_context=processed_file.source_span.content_with_context
             )
             
-            feedback = FeedbackItem(
+            self.create_feedback(
                 message=f"Failed to parse changelog for publication history check: {str(e)}",
                 rule_id=ErrorCode.PUBLICATION_HISTORY_PARSE_ERROR,
                 severity=Severity.WARNING,
-                span=source_span
+                source_span=source_span
             )
-            
-            self.feedback.append(feedback)
 
     def check_version_publication(self, processed_file, package_name: str, version_to_check: str):
         """Check if a specific version has been published."""
@@ -97,14 +95,13 @@ class PublicationHistory(Plugin):
                 # Version already published - this might be an error depending on context
                 source_span = self.find_version_line_span(processed_file, version_to_check)
                 
-                feedback = FeedbackItem(
+                self.create_line_feedback(
                     message=f"Version '{version_to_check}' of '{package_name}' is already published in: {', '.join(found_publications)}",
                     rule_id=ErrorCode.PUBLICATION_HISTORY_ALREADY_PUBLISHED,
-                    severity=Severity.WARNING,  # Could be ERROR depending on policy
-                    span=source_span
+                    severity=Severity.ERROR,
+                    source_span=source_span,
+                    target_line_content=version_to_check
                 )
-                
-                self.feedback.append(feedback)
                 self.logger.warning(f"Version {package_name} {version_to_check} already published")
             else:
                 self.logger.info(f"✅ Version '{version_to_check}' of '{package_name}' not found in publication history (good for new uploads)")
@@ -115,14 +112,12 @@ class PublicationHistory(Plugin):
             # Create feedback for API errors
             source_span = self.find_version_line_span(processed_file, version_to_check)
             
-            feedback = FeedbackItem(
+            self.create_feedback(
                 message=f"Failed to check publication history for {package_name} {version_to_check}: {str(e)}",
                 rule_id=ErrorCode.PUBLICATION_HISTORY_API_ERROR,
                 severity=Severity.WARNING,
-                span=source_span
+                source_span=source_span
             )
-            
-            self.feedback.append(feedback)
 
     def find_version_line_span(self, processed_file, version_to_check):
         """Find the source span for a specific version in the changelog."""
