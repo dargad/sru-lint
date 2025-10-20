@@ -189,7 +189,6 @@ def check(
                     typer.secho(f"- {item.message} (Severity: {item.severity.value}): {item.span.path}", fg=severity_color)
 
                     if not item.span.is_empty():
-                        print(f"Item span: {item.span.start_line}-{item.span.end_line} in {item.span.path}")
                         render_snippet(
                             code="\n".join([line.content for line in item.span.lines_added]),
                             title=f"File: {item.span.path}",
