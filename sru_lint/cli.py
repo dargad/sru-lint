@@ -1,11 +1,18 @@
 from typing import Optional
 import logging
+import json
 
 from sru_lint.common.ui.snippet import render_snippet
 from sru_lint.plugin_manager import PluginManager
 from sru_lint.common.logging import setup_logger, get_logger
 from sru_lint.common.patch_processor import process_patch_content
 import typer
+from enum import Enum
+
+# Format options enum
+class OutputFormat(str, Enum):
+    console = "console"
+    json = "json"
 
 # Global state for CLI options
 class GlobalOptions:
@@ -36,6 +43,21 @@ def quiet_callback(value: bool):
     """Callback for quiet option."""
     global_options.quiet = value
     configure_logging()
+
+def feedback_to_dict(feedback_item):
+    """Convert a FeedbackItem to a dictionary for JSON serialization."""
+    return {
+        "message": feedback_item.message,
+        "rule_id": feedback_item.rule_id,
+        "severity": feedback_item.severity.value,
+        "span": {
+            "path": feedback_item.span.path,
+            "start_line": feedback_item.span.start_line,
+            "start_col": feedback_item.span.start_col,
+            "end_line": feedback_item.span.end_line,
+            "end_col": feedback_item.span.end_col,
+        }
+    }
 
 app = typer.Typer(
     help="sru-lint - Static analysis tool for Ubuntu SRU patches",
@@ -72,12 +94,17 @@ def check(
         ["all"], "--modules", "-m", 
         help="Only run the specified module(s). Default is 'all'. Can be specified as comma-separated list or multiple times"
     ),
+    format: OutputFormat = typer.Option(
+        OutputFormat.console, "--format", "-f",
+        help="Output format: 'console' for human-readable output with snippets, 'json' for machine-readable JSON array"
+    ),
 ):
     """
     Run the linter on the specified patch.
     """
     logger = get_logger("cli")
     logger.debug(f"Reading patch from {infile.name}")
+    logger.debug(f"Output format: {format}")
     
     # Process comma-separated module names
     expanded_modules = []
@@ -112,9 +139,13 @@ def check(
         filtered_plugins = [p for p in plugins if p.__symbolic_name__ in expanded_modules]
         if not filtered_plugins:
             logger.warning(f"No plugins found matching the specified modules: {', '.join(expanded_modules)}")
-            typer.echo("Available modules:")
-            for plugin in plugins:
-                typer.echo(f"- {plugin.__symbolic_name__}")
+            if format == OutputFormat.console:
+                typer.echo("Available modules:")
+                for plugin in plugins:
+                    typer.echo(f"- {plugin.__symbolic_name__}")
+            else:
+                # For JSON format, output empty array when no modules found
+                typer.echo(json.dumps([]))
             return
         plugins = filtered_plugins
         logger.info(f"Filtered to {len(plugins)} plugins: {[p.__symbolic_name__ for p in plugins]}")
@@ -136,31 +167,37 @@ def check(
     
     logger.info(f"Collected {len(feedback)} feedback items: {error_count} errors, {warning_count} warnings, {info_count} info")
     
-    # Print feedback summary (always shown unless quiet mode)
-    if not global_options.quiet:
-        if feedback:
-            typer.echo("\nFeedback:")
-            for item in feedback:
-                # Format output based on severity
-                severity_color = {
-                    "error": typer.colors.RED,
-                    "warning": typer.colors.YELLOW,
-                    "info": typer.colors.BLUE,
-                }.get(item.severity.value, None)
-                
-                typer.secho(f"- {item.message} (Severity: {item.severity.value})", fg=severity_color)
+    # Output feedback based on format
+    if format == OutputFormat.json:
+        # JSON output - always output the array regardless of quiet mode
+        feedback_dicts = [feedback_to_dict(item) for item in feedback]
+        typer.echo(json.dumps(feedback_dicts, indent=2))
+    else:
+        # Console output (existing behavior)
+        if not global_options.quiet:
+            if feedback:
+                typer.echo("\nFeedback:")
+                for item in feedback:
+                    # Format output based on severity
+                    severity_color = {
+                        "error": typer.colors.RED,
+                        "warning": typer.colors.YELLOW,
+                        "info": typer.colors.BLUE,
+                    }.get(item.severity.value, None)
+                    
+                    typer.secho(f"- {item.message} (Severity: {item.severity.value})", fg=severity_color)
 
-                print(f"Item span: {item.span.start_line}-{item.span.end_line} in {item.span.path}")
-                render_snippet(
-                    code="\n".join([line.content for line in item.span.lines_added]),
-                    title=f"File: {item.span.path}",
-                    highlight_lines=[item.span.start_line] if item.span.start_line >= 0 else [],
-                    annotations={
-                        item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
-                    }
-                )
-        else:
-            typer.secho("✅ No issues found", fg=typer.colors.GREEN)
+                    print(f"Item span: {item.span.start_line}-{item.span.end_line} in {item.span.path}")
+                    render_snippet(
+                        code="\n".join([line.content for line in item.span.lines_added]),
+                        title=f"File: {item.span.path}",
+                        highlight_lines=[item.span.start_line] if item.span.start_line >= 0 else [],
+                        annotations={
+                            item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
+                        }
+                    )
+            else:
+                typer.secho("✅ No issues found", fg=typer.colors.GREEN)
     
     # Exit with error code if there are any errors
     if error_count > 0:
