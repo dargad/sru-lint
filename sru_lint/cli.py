@@ -2,6 +2,7 @@ from typing import Optional
 import logging
 import json
 
+from sru_lint.common.errors import ErrorEnumEncoder
 from sru_lint.common.ui.snippet import render_snippet
 from sru_lint.plugin_manager import PluginManager
 from sru_lint.common.logging import setup_logger, get_logger
@@ -171,7 +172,7 @@ def check(
     if format == OutputFormat.json:
         # JSON output - always output the array regardless of quiet mode
         feedback_dicts = [feedback_to_dict(item) for item in feedback]
-        typer.echo(json.dumps(feedback_dicts, indent=2))
+        typer.echo(json.dumps(feedback_dicts, indent=2, cls=ErrorEnumEncoder))
     else:
         # Console output (existing behavior)
         if not global_options.quiet:

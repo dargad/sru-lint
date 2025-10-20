@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 
 class ErrorCode(Enum):
@@ -12,3 +13,12 @@ class ErrorCode(Enum):
     PATCH_DEP3_EMPTY_DESCRIPTION = "PATCH003"
     PATCH_DEP3_MISSING_ORIGIN_AUTHOR = "PATCH004"
     PATCH_DEP3_INVALID_DATE = "PATCH005"
+
+
+class ErrorEnumEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Enum serialization."""
+    
+    def default(self, obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        return super().default(obj)
