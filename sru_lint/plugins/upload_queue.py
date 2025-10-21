@@ -98,7 +98,6 @@ class UploadQueue(Plugin):
                     continue
                 
                 try:
-                    print(f"!!! Debug: checking upload queue for {package_name} {version_to_check} in suite {suite} (base: {base}) !!!")  # --- IGNORE ---
                     # Get the distribution series
                     ds = self.lp_helper.ubuntu.getSeries(name_or_version=base)
                     
