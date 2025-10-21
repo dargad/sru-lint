@@ -3,7 +3,7 @@ from os.path import expanduser
 from debian import changelog
 
 from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
-from sru_lint.common.parse import REVIEW_STATES, parse_distributions_field
+from sru_lint.common.parse import REVIEW_STATES, UNRELEASED_DISTRIBUTION, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode
@@ -86,8 +86,19 @@ class UploadQueue(Plugin):
                 
                 # Extract base distribution name (e.g., 'jammy-proposed' -> 'jammy')
                 base = suite.split("-", 1)[0]
+
+                if base == UNRELEASED_DISTRIBUTION:
+                    self.create_line_feedback(
+                        message=f"Cannot check upload queue for UNRELEASED distribution for package '{package_name}' version '{version_to_check}'",
+                        rule_id=ErrorCode.UPLOAD_QUEUE_UNRELEASED,
+                        severity=Severity.WARNING,
+                        source_span=processed_file.source_span,
+                        target_line_content=base
+                    )
+                    continue
                 
                 try:
+                    print(f"!!! Debug: checking upload queue for {package_name} {version_to_check} in suite {suite} (base: {base}) !!!")  # --- IGNORE ---
                     # Get the distribution series
                     ds = self.lp_helper.ubuntu.getSeries(name_or_version=base)
                     
@@ -106,14 +117,12 @@ class UploadQueue(Plugin):
                         for upload in waiting:
                             self.logger.info(f"Found {package_name} in upload queue: {ds.name}/{upload.pocket}/{upload.status}")
                             
-                            # Create feedback for uploads in queue
-                            source_span = self.find_version_line_span(processed_file, version_to_check)
-
-                            self.create_feedback(
+                            self.create_line_feedback(
                                 message=f"Package '{package_name}' version '{version_to_check}' is already in upload queue for {ds.name}/{upload.pocket} with status '{upload.status}'",
                                 rule_id=ErrorCode.UPLOAD_QUEUE_ALREADY_QUEUED,
                                 severity=Severity.WARNING,  # Could be ERROR depending on policy
-                                source_span=source_span
+                                source_span=processed_file.source_span,
+                                target_line_content=version_to_check
                             )
                     else:
                         self.logger.info(f"✅ No review-queue uploads for {package_name} in {ds.name} (good for new uploads)")
@@ -147,6 +156,7 @@ class UploadQueue(Plugin):
     def find_version_line_span(self, processed_file, version_to_check):
         """Find the source span for a specific version in the changelog."""
         # Look for the version string in the added lines
+        self.logger.debug(f"Finding line span for version {version_to_check} in {processed_file.path}")
         for line in processed_file.source_span.content:
             if version_to_check in line.content:
                 # Create a source span for this line
@@ -156,16 +166,19 @@ class UploadQueue(Plugin):
                     is_added=line.is_added
                 )
                 
+                start_col = line.content.find(version_to_check) + 1  # +1 for 1-based index
+                self.logger.debug(f"Found version {version_to_check} at line {line.line_number}, column {start_col}")
                 return SourceSpan(
                     path=processed_file.path,
                     start_line=line.line_number,
-                    start_col=1,
+                    start_col=start_col,
                     end_line=line.line_number,
                     end_col=len(line.content),
                     content=[source_line],
                     content_with_context=[source_line]
                 )
-        
+
+        print(f"Fallback to first line for version {version_to_check} in {processed_file.path}")
         # Fallback to first line if version not found in specific line
         return SourceSpan(
             path=processed_file.path,

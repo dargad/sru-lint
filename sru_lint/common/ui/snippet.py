@@ -84,7 +84,6 @@ def render_snippet(
         - str: simple message without column positioning
         - tuple(message, column): message with up-arrow pointing to specific column
     """
-    print(f"Rendering snippet with {len(code.splitlines())} lines: start: {start_line}, start_col: {start_col}")
     highlight_lines = set(highlight_lines or [])
     annotations = annotations or {}
 

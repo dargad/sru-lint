@@ -52,9 +52,6 @@ class TestUploadQueue(unittest.TestCase):
         # Mock Launchpad helper
         self.mock_lp_helper = MagicMock()
         self.plugin.lp_helper = self.mock_lp_helper
-        
-        # Mock create_feedback method
-        self.plugin.create_feedback = MagicMock()
 
     def test_register_file_patterns(self):
         """Test that the plugin registers debian/changelog pattern"""
@@ -77,7 +74,7 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should not create any feedback for empty content
-        self.plugin.create_feedback.assert_not_called()
+        self.assertEqual(len(self.plugin.feedback), 0)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -115,7 +112,7 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should not create any feedback for no uploads in queue
-        self.plugin.create_feedback.assert_not_called()
+        self.assertEqual(len(self.plugin.feedback), 0)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -158,11 +155,11 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should create feedback for upload in queue
-        self.plugin.create_feedback.assert_called()
-        call_args = self.plugin.create_feedback.call_args[1]
-        self.assertEqual(call_args['rule_id'], ErrorCode.UPLOAD_QUEUE_ALREADY_QUEUED)
-        self.assertEqual(call_args['severity'], Severity.WARNING)
-        self.assertIn("already in upload queue", call_args['message'])
+        self.assertEqual(len(self.plugin.feedback), 1)
+        feedback = self.plugin.feedback[0]
+        self.assertEqual(feedback.rule_id, ErrorCode.UPLOAD_QUEUE_ALREADY_QUEUED)
+        self.assertEqual(feedback.severity, Severity.WARNING)
+        self.assertIn("already in upload queue", feedback.message)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -209,7 +206,7 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should create feedback for both uploads
-        self.assertEqual(self.plugin.create_feedback.call_count, 2)
+        self.assertEqual(len(self.plugin.feedback), 2)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -251,7 +248,7 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should not create feedback since upload is not in review state
-        self.plugin.create_feedback.assert_not_called()
+        self.assertEqual(len(self.plugin.feedback), 0)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -312,11 +309,11 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should create feedback for parsing error
-        self.plugin.create_feedback.assert_called_once()
-        call_args = self.plugin.create_feedback.call_args[1]
-        self.assertEqual(call_args['rule_id'], ErrorCode.UPLOAD_QUEUE_PARSE_ERROR)
-        self.assertEqual(call_args['severity'], Severity.WARNING)
-        self.assertIn("Failed to parse changelog", call_args['message'])
+        self.assertEqual(len(self.plugin.feedback), 1)
+        feedback = self.plugin.feedback[0]
+        self.assertEqual(feedback.rule_id, ErrorCode.UPLOAD_QUEUE_PARSE_ERROR)
+        self.assertEqual(feedback.severity, Severity.WARNING)
+        self.assertIn("Failed to parse changelog", feedback.message)
 
     def test_process_file_no_lp_helper(self):
         """Test processing when Launchpad helper is not available"""
@@ -348,7 +345,7 @@ class TestUploadQueue(unittest.TestCase):
                 self.plugin.process_file(processed_file)
         
         # Should not create any feedback when lp_helper is unavailable
-        self.plugin.create_feedback.assert_not_called()
+        self.assertEqual(len(self.plugin.feedback), 0)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -383,11 +380,12 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should create feedback for API error
-        self.plugin.create_feedback.assert_called_once()
-        call_args = self.plugin.create_feedback.call_args[1]
-        self.assertEqual(call_args['rule_id'], ErrorCode.UPLOAD_QUEUE_API_ERROR)
-        self.assertEqual(call_args['severity'], Severity.WARNING)
-        self.assertIn("Failed to check upload queue", call_args['message'])
+        self.assertEqual(len(self.plugin.feedback), 1)
+        feedback = self.plugin.feedback[0]
+        self.assertEqual(feedback.rule_id, ErrorCode.UPLOAD_QUEUE_API_ERROR)
+        self.assertEqual(feedback.severity, Severity.WARNING)
+        self.assertIn("Failed to check upload queue", feedback.message)
+        self.assertIn("API Error", feedback.message)
 
     @patch('sru_lint.plugins.upload_queue.changelog.Changelog')
     @patch('sru_lint.plugins.upload_queue.parse_distributions_field')
@@ -430,10 +428,10 @@ class TestUploadQueue(unittest.TestCase):
         self.plugin.process_file(processed_file)
         
         # Should create feedback for suite error
-        self.plugin.create_feedback.assert_called_once()
-        call_args = self.plugin.create_feedback.call_args[1]
-        self.assertEqual(call_args['rule_id'], ErrorCode.UPLOAD_QUEUE_API_ERROR)
-        self.assertIn("focal", call_args['message'])
+        self.assertEqual(len(self.plugin.feedback), 1)
+        feedback = self.plugin.feedback[0]
+        self.assertEqual(feedback.rule_id, ErrorCode.UPLOAD_QUEUE_API_ERROR)
+        self.assertIn("focal", feedback.message)
 
     def test_find_version_line_span_found(self):
         """Test finding version line span when version is in content"""
@@ -521,7 +519,7 @@ class TestUploadQueue(unittest.TestCase):
         
         # Should have checked both versions
         self.assertEqual(self.mock_lp_helper.ubuntu.getSeries.call_count, 2)
-        self.plugin.create_feedback.assert_not_called()
+        self.assertEqual(len(self.plugin.feedback), 0)
 
 
 if __name__ == '__main__':

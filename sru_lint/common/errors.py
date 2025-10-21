@@ -21,6 +21,7 @@ class ErrorCode(Enum):
     UPLOAD_QUEUE_API_ERROR = "UPLOADQ001"
     UPLOAD_QUEUE_PARSE_ERROR = "UPLOADQ002"
     UPLOAD_QUEUE_ALREADY_QUEUED = "UPLOADQ003"
+    UPLOAD_QUEUE_UNRELEASED = "UPLOADQ004"
 
 class ErrorEnumEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles Enum serialization."""
