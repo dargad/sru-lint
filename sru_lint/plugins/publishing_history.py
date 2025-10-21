@@ -1,4 +1,4 @@
-from sru_lint.common.parse import parse_distributions_field
+from sru_lint.common.parse import UNRELEASED_DISTRIBUTION, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode
@@ -45,8 +45,9 @@ class PublishingHistory(Plugin):
                 version_to_check = entry.version
                 distribution = entry.distributions
 
-                self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
-                self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
+                if distribution != UNRELEASED_DISTRIBUTION:
+                    self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
+                    self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
 
         except Exception as e:
             self.logger.error(f"Error parsing changelog {processed_file.path}: {e}")
@@ -93,8 +94,9 @@ class PublishingHistory(Plugin):
                 pub_distro = pub.distro_series.name
                 publication_info = f"{pub_distro}/{pub.pocket}/{pub.status}"
                 
+                distro = parse_distributions_field(distribution)
                 # Check if this publication is for the same distribution
-                if pub_distro == parse_distributions_field(distribution)[0]:  # Handle cases like 'jammy-proposed' -> 'jammy'
+                if pub_distro == (distro[0] if distro and len(distro) > 0 else distribution):  # Handle cases like 'jammy-proposed' -> 'jammy'
                     if pub_version == version_to_check:
                         found_publications.append(publication_info)
                         self.logger.info(f"✅ Found {package_name} {version_to_check} in {publication_info}")

@@ -3,7 +3,7 @@ from os.path import expanduser
 from debian import changelog
 
 from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
-from sru_lint.common.parse import DEBIAN_CHANGELOG, parse_distributions_field, REVIEW_STATES
+from sru_lint.common.parse import REVIEW_STATES, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode

@@ -5,6 +5,8 @@ DEBIAN_PATCHES = "debian/patches/"
 
 REVIEW_STATES = {"New", "Unapproved"}
 
+UNRELEASED_DISTRIBUTION = "UNRELEASED"
+
 def parse_distributions_field(value: str) -> list[str]:
     """
     Debian changelog 'distributions' can contain multiple suites separated by
@@ -16,8 +18,7 @@ def parse_distributions_field(value: str) -> list[str]:
     # normalize commas to spaces, collapse whitespace
     norm = re.sub(r"[,\s]+", " ", value).strip()
     tokens = norm.split()
-    # Drop non-upload suites you don't want to query (optional)
-    return [t for t in tokens if t.lower() != "unreleased"]
+    return tokens
 
 def find_offset(lines, search_text: str) -> tuple[int, int]:
     """
