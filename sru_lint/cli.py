@@ -1,6 +1,7 @@
 from typing import Optional, List, Tuple
 import logging
 import json
+import time
 
 from sru_lint.common.errors import ErrorEnumEncoder
 from sru_lint.common.ui.snippet import render_snippet
@@ -10,6 +11,8 @@ from sru_lint.common.patch_processor import process_patch_content
 from sru_lint.common.feedback import FeedbackItem
 import typer
 from enum import Enum
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.console import Console
 
 # Format options enum
 class OutputFormat(str, Enum):
@@ -22,6 +25,7 @@ class GlobalOptions:
     quiet: bool = False
 
 global_options = GlobalOptions()
+console = Console()
 
 def configure_logging():
     """Configure logging based on global options."""
@@ -128,16 +132,50 @@ def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
     logger.info(f"Running {len(plugins)} plugins")
     return plugins
 
-def run_plugins(plugins, processed_files) -> List[FeedbackItem]:
+def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[FeedbackItem]:
     """Run all plugins on the processed files and collect feedback."""
     logger = get_logger("cli")
     
     feedback = []
-    for plugin in plugins:
-        logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-        plugin_feedback = plugin.process(processed_files)
-        feedback.extend(plugin_feedback)
-        logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
+    
+    # Don't show progress in JSON mode or if quiet
+    if output_format == OutputFormat.json or global_options.quiet:
+        for plugin in plugins:
+            logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
+            plugin_feedback = plugin.process(processed_files)
+            feedback.extend(plugin_feedback)
+            logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
+    else:
+        # Show progress with rich progress bar
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True  # Remove progress bar when done
+        ) as progress:
+            
+            for plugin in plugins:
+                # Create a task for this plugin
+                task = progress.add_task(f"Running {plugin.__symbolic_name__}...", total=None)
+                
+                logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
+                start_time = time.time()
+                
+                plugin_feedback = plugin.process(processed_files)
+                feedback.extend(plugin_feedback)
+                
+                elapsed = time.time() - start_time
+                logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s")
+                
+                # Update task description to show completion
+                progress.update(task, description=f"✓ {plugin.__symbolic_name__} ({len(plugin_feedback)} items)")
+                
+                # Brief pause to show the completed status
+                time.sleep(0.1)
+                
+                # Remove the completed task
+                progress.remove_task(task)
     
     return feedback
 
@@ -191,6 +229,26 @@ def output_feedback(feedback: List[FeedbackItem], output_format: OutputFormat):
         output_json_feedback(feedback)
     else:
         output_console_feedback(feedback)
+
+def show_processing_summary(processed_files, plugins, output_format: OutputFormat):
+    """Show a summary of what will be processed."""
+    if output_format == OutputFormat.json or global_options.quiet:
+        return
+    
+    file_count = len(processed_files)
+    plugin_count = len(plugins)
+    
+    console.print(f"[blue]Processing {file_count} file(s) with {plugin_count} plugin(s)...[/blue]")
+    
+    if global_options.verbose >= 1:
+        console.print("[dim]Files:[/dim]")
+        for f in processed_files:
+            console.print(f"  [dim]• {f.path}[/dim]")
+        
+        console.print("[dim]Plugins:[/dim]")
+        for p in plugins:
+            console.print(f"  [dim]• {p.__symbolic_name__}[/dim]")
+        console.print()
 
 app = typer.Typer(
     help="sru-lint - Static analysis tool for Ubuntu SRU patches",
@@ -250,8 +308,11 @@ def check(
     if not plugins:
         return  # Early exit if no plugins found
     
+    # Show processing summary
+    show_processing_summary(processed_files, plugins, format)
+    
     # Run plugins and collect feedback
-    feedback = run_plugins(plugins, processed_files)
+    feedback = run_plugins(plugins, processed_files, format)
     
     # Analyze feedback
     error_count, warning_count, info_count = analyze_feedback(feedback)
