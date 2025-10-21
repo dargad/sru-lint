@@ -24,6 +24,8 @@ class ErrorCode(Enum):
     UPLOAD_QUEUE_UNRELEASED = "UPLOADQ004"
 
     SRU_TEMPLATE_MISSING = "LPBUG001"
+    SRU_LP_API_ERROR = "LPBUG002"
+    SRU_NO_BUGS_REFERENCED = "LPBUG003"
 
 class ErrorEnumEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles Enum serialization."""

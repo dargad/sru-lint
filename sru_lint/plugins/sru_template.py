@@ -1,4 +1,6 @@
 from sru_lint.common.errors import ErrorCode
+from sru_lint.common.feedback import Severity
+from sru_lint.common.launchpad_helper import LaunchpadHelper
 from sru_lint.common.logging import get_logger
 from sru_lint.plugins.plugin_base import Plugin, ProcessedFile
 
@@ -17,18 +19,40 @@ class SRUTemplate(Plugin):
     def process_file(self, processed_file: ProcessedFile):
         """Process a single file and generate feedback."""
 
-        self.logger.debug(f"Processing file: {processed_file.source_span}")
+        self.logger.info(f"Processing file: {processed_file.path}")
 
         content = "\n".join(line.content for line in processed_file.source_span.lines_added)
 
-        lpbugs = self.lp_helper.extract_lp_bugs(content)
-        self.logger.debug(f"Found LP bugs: {lpbugs}")
+        lpbugs = LaunchpadHelper.extract_lp_bugs(content)
 
-        for bug in lpbugs:
-            if not self.lp_helper.has_sru_template(bug):
-                self.create_line_feedback(
-                    message="SRU template not found for bug",
-                    rule_id=ErrorCode.SRU_TEMPLATE_MISSING,
-                    source_span=processed_file.source_span,
-                    target_line_content=f"LP: #{bug}"
-                )
+        if len(lpbugs) == 0:
+            self.logger.debug(f"No Launchpad bugs found in {processed_file.path}")
+            self.create_feedback(
+                message=f"No Launchpad bugs referenced in {processed_file.path}",
+                rule_id=ErrorCode.SRU_NO_BUGS_REFERENCED,
+                source_span=processed_file.source_span,
+                severity=Severity.INFO
+            )
+        else:
+            self.logger.debug(f"Found Launchpad bugs in {processed_file.path}: {lpbugs}")
+
+            for bug in lpbugs:
+                try:
+                    self.logger.debug(f"Checking SRU template for bug: {bug}")
+                    if not self.lp_helper.has_sru_template(bug):
+                        self.logger.warning(f"SRU template not found for bug LP: #{bug}")
+                        self.create_line_feedback(
+                            message=f"SRU template not found for bug LP: #{bug}",
+                            rule_id=ErrorCode.SRU_TEMPLATE_MISSING,
+                            source_span=processed_file.source_span,
+                            target_line_content=f"LP: #{bug}"
+                        )
+                except Exception as e:
+                    self.logger.error(f"Error checking SRU template for bug LP: #{bug}: {e}")
+                    self.create_line_feedback(
+                        message=f"Error checking SRU template for bug LP: #{bug}: {str(e)}",
+                        rule_id=ErrorCode.SRU_LP_API_ERROR,
+                        source_span=processed_file.source_span,
+                        target_line_content=f"LP: #{bug}",
+                        severity=Severity.WARNING
+                    )
