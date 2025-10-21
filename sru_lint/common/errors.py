@@ -23,6 +23,8 @@ class ErrorCode(Enum):
     UPLOAD_QUEUE_ALREADY_QUEUED = "UPLOADQ003"
     UPLOAD_QUEUE_UNRELEASED = "UPLOADQ004"
 
+    SRU_TEMPLATE_MISSING = "LPBUG001"
+
 class ErrorEnumEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles Enum serialization."""
     

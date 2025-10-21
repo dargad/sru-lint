@@ -224,7 +224,39 @@ class LaunchpadHelper:
         bug_numbers = [int(match) for match in matches]
         logger.debug(f"Extracted {len(bug_numbers)} LP bug numbers from text: {bug_numbers}")
         return bug_numbers
+    
+    def has_sru_template(self, bug_number: int) -> bool:
+        """
+        Check if a bug has the SRU template applied in its description.
+        
+        Args:
+            bug_number: The Launchpad bug number
+        Returns:
+            True if the SRU template is found, False otherwise
+        """
+        bug = self.get_bug(bug_number)
+        if not bug:
+            return False
+        
+        self.logger.debug(f"Checking SRU template for bug #{bug_number}")
+        description = bug.description or ""
+        
+        # Simple check for SRU template keywords in the description
+        sru_keywords = [
+            "[ Impact ]",
+            "[ Test Plan ]",
+            "[ Where problems could occur ]"
+        ]
 
+        keywords_found = 0
+        
+        for keyword in sru_keywords:
+            if keyword in description:
+                self.logger.debug(f"Found SRU template keyword '{keyword}' in bug #{bug_number}")
+                keywords_found += 1
+
+        self.logger.debug(f"LP: #{bug_number} has {keywords_found} SRU template keywords")
+        return keywords_found > 1
 
 # Create a single global instance
 _launchpad_helper = None
