@@ -118,6 +118,7 @@ Checks are implemented as **plugins**. Current plugins include:
 - **`publication-history`** – Checks if versions are already published in Launchpad
 - **`upload-queue`** – Checks if versions are already in the Launchpad upload queue
 - **`launchpad-bug`** – Validates Launchpad bug references and targeting
+- **`sru-template`** – Validates that LP bugs referenced in SRU changelog entries have proper SRU templates in their Launchpad descriptions
 
 ---
 
@@ -256,6 +257,12 @@ Error codes are defined in `sru_lint.common.errors.ErrorCode`:
 - **LPBUG005** - Bug status invalid for SRU
 - **LPBUG006** - Parsing error when processing changelog
 
+### SRU Template Plugin (SRU_TEMPLATE)
+- **SRU_TEMPLATE_MISSING** - Bug is missing the required SRU template
+- **SRU_TEMPLATE_NO_BUGS** - SRU version found but no LP bugs referenced
+- **SRU_TEMPLATE_API_ERROR** - API error when checking SRU template
+- **SRU_TEMPLATE_PARSE_ERROR** - Error parsing changelog content
+
 ### General Errors (GENERAL)
 - **GENERAL001** - Generic processing error
 - **GENERAL002** - File not found or inaccessible
@@ -313,6 +320,12 @@ Validate Launchpad bug references:
 poetry run sru-lint check -m launchpad-bug my.patch
 ```
 
+Check SRU template compliance:
+
+```bash
+poetry run sru-lint check -m sru-template my.patch
+```
+
 ---
 
 ## Development
@@ -352,6 +365,7 @@ sru-lint/
 │   │   ├── publication_history.py # Publication history checking
 │   │   ├── upload_queue.py    # Upload queue checking
 │   │   ├── launchpad_bug.py   # Launchpad bug validation
+│   │   ├── sru_template.py    # SRU template validation
 │   │   └── nested/            # Nested plugin example
 │   │       └── dummy_plugin.py
 │   └── common/                # Shared utilities
@@ -371,6 +385,7 @@ sru-lint/
 │   ├── test_publication_history.py
 │   ├── test_upload_queue.py
 │   ├── test_launchpad_bug.py
+│   ├── test_sru_template.py
 │   ├── test_cli.py
 │   └── ...
 ├── pyproject.toml            # Poetry configuration
@@ -423,4 +438,4 @@ Use the `-m`/`--modules` option: `sru-lint check -m changelog-entry,patch-format
 Console output shows human-friendly snippets with syntax highlighting and context. JSON output provides structured data suitable for machine processing and integration with other tools.
 
 **How do I check Launchpad integration?**  
-The publication-history, upload-queue, and launchpad-bug plugins integrate with Launchpad APIs to validate bug targeting, check for duplicate uploads, and verify publication status. These plugins require network access and may be slower than
+The publication-history, upload-queue, launchpad-bug, and sru-template plugins integrate with Launchpad APIs to validate bug targeting, check for duplicate uploads, verify publication status, and ensure SRU bugs have proper templates. These plugins require network access and may be slower than
