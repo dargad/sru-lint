@@ -70,7 +70,7 @@ class PublishingHistory(Plugin):
 
     def check_version_publishing(self, processed_file, package_name: str, version_to_check: str, distribution: str):
         """Check if a specific version has been published."""
-        self.logger.debug(f"Checking publishing for {package_name} {version_to_check} in {distribution}")
+        self.logger.debug(f"Checking publication for {package_name} {version_to_check} in {distribution}")
 
         try:
             # Check if we have a Launchpad helper available

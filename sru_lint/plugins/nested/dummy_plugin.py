@@ -32,8 +32,6 @@ class DummyPlugin(Plugin):
 
     def process(self, processed_files):
         """Legacy method for backward compatibility."""
-        print("DummyPlugin processing files")
-
         # Clear any existing feedback
         self.feedback.clear()
 
