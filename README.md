@@ -401,7 +401,7 @@ sru-lint = "sru_lint.cli:app"
 
 ## License
 
-Specify your license (e.g., MIT, Apache-2.0) in `LICENSE`.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
