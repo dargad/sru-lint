@@ -127,6 +127,7 @@ class TestPublicationHistory(unittest.TestCase):
         mock_entry = MagicMock()
         mock_entry.package = "package"
         mock_entry.version = "1.0-1ubuntu1"
+        mock_entry.distributions = "focal"
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
@@ -168,6 +169,7 @@ class TestPublicationHistory(unittest.TestCase):
         mock_entry = MagicMock()
         mock_entry.package = "package"
         mock_entry.version = "1.0-1ubuntu1"
+        mock_entry.distributions = "focal"
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
@@ -213,6 +215,7 @@ class TestPublicationHistory(unittest.TestCase):
         mock_entry = MagicMock()
         mock_entry.package = "package"
         mock_entry.version = "1.0-1ubuntu2"
+        mock_entry.distributions = "focal"
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
@@ -255,10 +258,12 @@ class TestPublicationHistory(unittest.TestCase):
         mock_entry1 = MagicMock()
         mock_entry1.package = "package"
         mock_entry1.version = "1.0-1ubuntu2"
+        mock_entry1.distributions = "focal"
         
         mock_entry2 = MagicMock()
         mock_entry2.package = "package"
         mock_entry2.version = "1.0-1ubuntu1"
+        mock_entry2.distributions = "focal"
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry1, mock_entry2])

@@ -1,3 +1,4 @@
+from sru_lint.common.parse import parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode
@@ -42,10 +43,11 @@ class PublicationHistory(Plugin):
             for entry in cl:
                 package_name = entry.package
                 version_to_check = entry.version
+                distribution = entry.distributions
                 
-                self.logger.debug(f"Checking publication history for {package_name} {version_to_check}")
-                self.check_version_publication(processed_file, package_name, str(version_to_check))
-                
+                self.logger.debug(f"Checking publication history for {package_name} {version_to_check} in {distribution}")
+                self.check_version_publication(processed_file, package_name, str(version_to_check), distribution)
+
         except Exception as e:
             self.logger.error(f"Error parsing changelog {processed_file.path}: {e}")
             # Create feedback for parsing errors
@@ -66,10 +68,10 @@ class PublicationHistory(Plugin):
                 source_span=source_span
             )
 
-    def check_version_publication(self, processed_file, package_name: str, version_to_check: str):
+    def check_version_publication(self, processed_file, package_name: str, version_to_check: str, distribution: str):
         """Check if a specific version has been published."""
-        self.logger.debug(f"Checking publication for {package_name} {version_to_check}")
-        
+        self.logger.debug(f"Checking publication for {package_name} {version_to_check} in {distribution}")
+
         try:
             # Check if we have a Launchpad helper available
             if not hasattr(self, 'lp_helper') or not self.lp_helper:
@@ -83,16 +85,31 @@ class PublicationHistory(Plugin):
             )
 
             found_publications = []
+            newer_publications = []
             
             # Check each publication
             for pub in publications:
-                if pub.source_package_version == version_to_check:
-                    publication_info = f"{pub.distro_series.name}/{pub.pocket}/{pub.status}"
-                    found_publications.append(publication_info)
-                    self.logger.info(f"✅ Found {package_name} {version_to_check} in {publication_info}")
+                pub_version = pub.source_package_version
+                pub_distro = pub.distro_series.name
+                publication_info = f"{pub_distro}/{pub.pocket}/{pub.status}"
+                
+                # Check if this publication is for the same distribution
+                if pub_distro == parse_distributions_field(distribution)[0]:  # Handle cases like 'jammy-proposed' -> 'jammy'
+                    if pub_version == version_to_check:
+                        found_publications.append(publication_info)
+                        self.logger.info(f"✅ Found {package_name} {version_to_check} in {publication_info}")
+                    else:
+                        # Check if published version is newer than the one we're checking
+                        try:
+                            from debian.debian_support import Version
+                            if Version(pub_version) > Version(version_to_check):
+                                newer_publications.append((pub_version, publication_info))
+                                self.logger.info(f"Found newer version {pub_version} in {publication_info}")
+                        except Exception as version_error:
+                            self.logger.debug(f"Could not compare versions {pub_version} vs {version_to_check}: {version_error}")
 
+            # Create feedback for exact version matches
             if found_publications:
-                # Version already published - this might be an error depending on context
                 source_span = self.find_version_line_span(processed_file, version_to_check)
                 
                 self.create_line_feedback(
@@ -103,8 +120,27 @@ class PublicationHistory(Plugin):
                     target_line_content=version_to_check
                 )
                 self.logger.warning(f"Version {package_name} {version_to_check} already published")
-            else:
-                self.logger.info(f"✅ Version '{version_to_check}' of '{package_name}' not found in publication history (good for new uploads)")
+            
+            # Create feedback for newer versions
+            if newer_publications:
+                source_span = self.find_version_line_span(processed_file, version_to_check)
+                
+                newer_versions_info = []
+                for newer_version, pub_info in newer_publications:
+                    newer_versions_info.append(f"{newer_version} in {pub_info}")
+                
+                self.create_line_feedback(
+                    message=f"Newer version(s) of '{package_name}' already published for {distribution}: {'; '.join(newer_versions_info)}. Current version '{version_to_check}' may be outdated.",
+                    rule_id=ErrorCode.PUBLICATION_HISTORY_NEWER_VERSION_EXISTS,
+                    severity=Severity.WARNING,
+                    source_span=source_span,
+                    target_line_content=version_to_check
+                )
+                self.logger.warning(f"Newer versions of {package_name} already published for {distribution}")
+            
+            # Log success if no issues found
+            if not found_publications and not newer_publications:
+                self.logger.info(f"✅ Version '{version_to_check}' of '{package_name}' not found in publication history and no newer versions exist (good for new uploads)")
                 
         except Exception as e:
             self.logger.error(f"Error checking publication history for {package_name} {version_to_check}: {e}")
