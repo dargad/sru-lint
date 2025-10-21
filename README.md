@@ -115,8 +115,9 @@ Checks are implemented as **plugins**. Current plugins include:
 
 - **`changelog-entry`** – Validates `debian/changelog` entries (distributions, LP bugs, version order)
 - **`patch-format`** – Checks DEP-3 compliance for patches in `debian/patches/`
-- **`publishing-history`** – Checks if versions are already published (TODO)
-- **`upload-queue`** – Checks if versions are in the upload queue (TODO)
+- **`publication-history`** – Checks if versions are already published in Launchpad
+- **`upload-queue`** – Checks if versions are already in the Launchpad upload queue
+- **`launchpad-bug`** – Validates Launchpad bug references and targeting
 
 ---
 
@@ -222,15 +223,42 @@ class PatchFormat(Plugin):
 
 Error codes are defined in `sru_lint.common.errors.ErrorCode`:
 
+### Changelog Entry Plugin (CHANGELOG)
 - **CHANGELOG001** - Invalid distribution
 - **CHANGELOG002** - Bug not targeted to distribution  
 - **CHANGELOG003** - Version order error
+- **CHANGELOG004** - Parsing error
+
+### DEP-3 Patch Format Plugin (PATCH_DEP3)
 - **PATCH_DEP3_FORMAT** - General DEP-3 format issue
 - **PATCH_DEP3_MISSING_DESCRIPTION** - Missing Description/Subject field
 - **PATCH_DEP3_EMPTY_DESCRIPTION** - Empty description field
 - **PATCH_DEP3_MISSING_ORIGIN_AUTHOR** - Missing Origin or Author field
 - **PATCH_DEP3_INVALID_DATE** - Invalid Last-Update date format
 - **PATCH_DEP3_INVALID_FORWARDED** - Invalid Forwarded field
+
+### Publication History Plugin (PUBHIST)
+- **PUBHIST001** - Version already published in Launchpad
+- **PUBHIST002** - API error when checking publication history
+- **PUBHIST003** - Parsing error when processing changelog
+- **PUBHIST004** - Newer version already exists for the distribution
+
+### Upload Queue Plugin (UPLOADQ)
+- **UPLOADQ001** - Version already in upload queue
+- **UPLOADQ002** - API error when checking upload queue
+- **UPLOADQ003** - Parsing error when processing changelog
+
+### Launchpad Bug Plugin (LPBUG)
+- **LPBUG001** - Invalid bug number format
+- **LPBUG002** - Bug not found in Launchpad
+- **LPBUG003** - Bug not targeted to the specified distribution
+- **LPBUG004** - API error when checking bug details
+- **LPBUG005** - Bug status invalid for SRU
+- **LPBUG006** - Parsing error when processing changelog
+
+### General Errors (GENERAL)
+- **GENERAL001** - Generic processing error
+- **GENERAL002** - File not found or inaccessible
 
 ---
 
@@ -273,6 +301,18 @@ Pipe from git:
 git show -p origin/stable..HEAD | poetry run sru-lint check -
 ```
 
+Check publishing history and upload queue:
+
+```bash
+poetry run sru-lint check -m publishing-history,upload-queue my.patch
+```
+
+Validate Launchpad bug references:
+
+```bash
+poetry run sru-lint check -m launchpad-bug my.patch
+```
+
 ---
 
 ## Development
@@ -309,8 +349,9 @@ sru-lint/
 │   ├── plugins/               # Built-in plugins
 │   │   ├── changelog_entry.py # Changelog validation
 │   │   ├── patch_format.py    # DEP-3 patch format checking
-│   │   ├── publishing_history.py
-│   │   ├── upload_queue.py
+│   │   ├── publication_history.py # Publication history checking
+│   │   ├── upload_queue.py    # Upload queue checking
+│   │   ├── launchpad_bug.py   # Launchpad bug validation
 │   │   └── nested/            # Nested plugin example
 │   │       └── dummy_plugin.py
 │   └── common/                # Shared utilities
@@ -318,6 +359,7 @@ sru-lint/
 │       ├── errors.py          # Error codes and enum serialization
 │       ├── logging.py         # Logging configuration
 │       ├── patch_processor.py # Patch parsing and ProcessedFile creation
+│       ├── parse.py           # Common parsing utilities
 │       ├── debian/            # Debian-specific utilities
 │       │   ├── changelog.py   # Changelog parsing
 │       │   └── dep3.py        # DEP-3 compliance checking
@@ -326,6 +368,9 @@ sru-lint/
 ├── tests/                     # Unit tests
 │   ├── test_changelog_entry.py
 │   ├── test_patch_format.py
+│   ├── test_publication_history.py
+│   ├── test_upload_queue.py
+│   ├── test_launchpad_bug.py
 │   ├── test_cli.py
 │   └── ...
 ├── pyproject.toml            # Poetry configuration
@@ -376,3 +421,6 @@ Use the `-m`/`--modules` option: `sru-lint check -m changelog-entry,patch-format
 
 **What's the difference between console and JSON output?**  
 Console output shows human-friendly snippets with syntax highlighting and context. JSON output provides structured data suitable for machine processing and integration with other tools.
+
+**How do I check Launchpad integration?**  
+The publication-history, upload-queue, and launchpad-bug plugins integrate with Launchpad APIs to validate bug targeting, check for duplicate uploads, and verify publication status. These plugins require network access and may be slower than
