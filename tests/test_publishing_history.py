@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from sru_lint.plugins.publication_history import PublicationHistory
+from sru_lint.plugins.publishing_history import PublishingHistory
 from sru_lint.plugins.plugin_base import ProcessedFile
 from sru_lint.common.feedback import SourceSpan, SourceLine, Severity
 from sru_lint.common.errors import ErrorCode
@@ -43,10 +43,10 @@ def create_test_processed_file(path, lines_content, lines_added_indices=None, st
     return ProcessedFile(path=path, source_span=source_span)
 
 
-class TestPublicationHistory(unittest.TestCase):
+class TestPublishingHistory(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
-        self.plugin = PublicationHistory()
+        self.plugin = PublishingHistory()
         self.plugin.feedback = []
         
         # Mock Launchpad helper
@@ -76,7 +76,7 @@ class TestPublicationHistory(unittest.TestCase):
         # Should not create any feedback for empty content
         self.assertEqual(len(self.plugin.feedback), 0)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_valid_changelog(self, mock_changelog_class):
         """Test processing a valid changelog with unpublished version"""
         changelog_content = [
@@ -110,7 +110,7 @@ class TestPublicationHistory(unittest.TestCase):
             exact_match=True
         )
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_already_published_version(self, mock_changelog_class):
         """Test processing changelog with already published version"""
         changelog_content = [
@@ -147,12 +147,12 @@ class TestPublicationHistory(unittest.TestCase):
         # Should create feedback for already published version
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertEqual(feedback.rule_id, ErrorCode.PUBLICATION_HISTORY_ALREADY_PUBLISHED)
+        self.assertEqual(feedback.rule_id, ErrorCode.PUBLISHING_HISTORY_ALREADY_PUBLISHED)
         self.assertEqual(feedback.severity, Severity.ERROR)
         self.assertIn("already published", feedback.message)
         self.assertIn("focal/Release/Published", feedback.message)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_multiple_publications(self, mock_changelog_class):
         """Test processing changelog with version published in multiple places"""
         changelog_content = [
@@ -198,7 +198,7 @@ class TestPublicationHistory(unittest.TestCase):
         self.assertIn("focal/Release/Published", feedback.message)
         self.assertIn("focal/Security/Published", feedback.message)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_different_version_published(self, mock_changelog_class):
         """Test processing changelog where different version is published"""
         changelog_content = [
@@ -235,7 +235,7 @@ class TestPublicationHistory(unittest.TestCase):
         # Should not create feedback since the specific version isn't published
         self.assertEqual(len(self.plugin.feedback), 0)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_multiple_entries(self, mock_changelog_class):
         """Test processing changelog with multiple entries"""
         changelog_content = [
@@ -286,7 +286,7 @@ class TestPublicationHistory(unittest.TestCase):
         self.assertIn("1.0-1ubuntu1", feedback.message)
         self.assertNotIn("1.0-1ubuntu2", feedback.message)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_changelog_parse_error(self, mock_changelog_class):
         """Test processing file with malformed changelog"""
         changelog_content = [
@@ -304,7 +304,7 @@ class TestPublicationHistory(unittest.TestCase):
         # Should create feedback for parsing error
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertEqual(feedback.rule_id, ErrorCode.PUBLICATION_HISTORY_PARSE_ERROR)
+        self.assertEqual(feedback.rule_id, ErrorCode.PUBLISHING_HISTORY_PARSE_ERROR)
         self.assertEqual(feedback.severity, Severity.WARNING)
         self.assertIn("Failed to parse changelog", feedback.message)
 
@@ -322,8 +322,8 @@ class TestPublicationHistory(unittest.TestCase):
         
         # Remove lp_helper
         del self.plugin.lp_helper
-        
-        with patch('sru_lint.plugins.publication_history.changelog.Changelog') as mock_changelog_class:
+
+        with patch('sru_lint.plugins.publishing_history.changelog.Changelog') as mock_changelog_class:
             mock_entry = MagicMock()
             mock_entry.package = "package"
             mock_entry.version = "1.0-1ubuntu1"
@@ -337,8 +337,8 @@ class TestPublicationHistory(unittest.TestCase):
         # Should not create any feedback when lp_helper is unavailable
         self.assertEqual(len(self.plugin.feedback), 0)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
-    def test_check_version_publication_api_error(self, mock_changelog_class):
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
+    def test_check_version_publishing_api_error(self, mock_changelog_class):
         """Test handling of Launchpad API errors"""
         changelog_content = [
             "package (1.0-1ubuntu1) focal; urgency=medium",
@@ -367,9 +367,9 @@ class TestPublicationHistory(unittest.TestCase):
         # Should create feedback for API error
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertEqual(feedback.rule_id, ErrorCode.PUBLICATION_HISTORY_API_ERROR)
+        self.assertEqual(feedback.rule_id, ErrorCode.PUBLISHING_HISTORY_API_ERROR)
         self.assertEqual(feedback.severity, Severity.WARNING)
-        self.assertIn("Failed to check publication history", feedback.message)
+        self.assertIn("Failed to check publishing history", feedback.message)
         self.assertIn("API Error", feedback.message)
 
     def test_find_version_line_span_found(self):
@@ -408,7 +408,7 @@ class TestPublicationHistory(unittest.TestCase):
 
     def test_symbolic_name(self):
         """Test that plugin has correct symbolic name"""
-        self.assertEqual(self.plugin.__symbolic_name__, "publication-history")
+        self.assertEqual(self.plugin.__symbolic_name__, "publishing-history")
 
     def test_feedback_management(self):
         """Test that plugin manages feedback correctly"""
@@ -417,14 +417,14 @@ class TestPublicationHistory(unittest.TestCase):
         
         # Create some feedback through parsing error
         processed_file = create_test_processed_file("debian/changelog", ["invalid content"])
-        
-        with patch('sru_lint.plugins.publication_history.changelog.Changelog', side_effect=Exception("Test error")):
+
+        with patch('sru_lint.plugins.publishing_history.changelog.Changelog', side_effect=Exception("Test error")):
             self.plugin.process_file(processed_file)
         
         # Should have feedback now
         self.assertGreater(len(self.plugin.feedback), 0)
 
-    @patch('sru_lint.plugins.publication_history.changelog.Changelog')
+    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_integration_test(self, mock_changelog_class):
         """Integration test combining multiple scenarios"""
         changelog_content = [

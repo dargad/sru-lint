@@ -6,19 +6,19 @@ from sru_lint.common.logging import get_logger
 from debian import changelog
 
 
-class PublicationHistory(Plugin):
+class PublishingHistory(Plugin):
     """Validates whether the version in debian/changelog has been already published in Ubuntu."""
 
     def __init__(self):
         super().__init__()
-        self.logger = get_logger("plugins.publication-history")
+        self.logger = get_logger("plugins.publishing-history")
 
     def register_file_patterns(self):
         """Register that we want to check debian/changelog files."""
         self.add_file_pattern("debian/changelog")
 
     def process_file(self, processed_file):
-        """Process a debian/changelog file to check publication history."""
+        """Process a debian/changelog file to check publishing history."""
         self.logger.info(f"Processing changelog file: {processed_file.path}")
         
         # Get the added content from the changelog file
@@ -29,11 +29,11 @@ class PublicationHistory(Plugin):
         
         # Combine the added lines into changelog content
         changelog_content = "\n".join([line.content for line in added_lines])
-        
-        self.logger.debug(f"Checking publication history for changelog: {processed_file.path}")
-        self.check_changelog_publication_history(processed_file, changelog_content)
 
-    def check_changelog_publication_history(self, processed_file, changelog_content):
+        self.logger.debug(f"Checking publishing history for changelog: {processed_file.path}")
+        self.check_changelog_publishing_history(processed_file, changelog_content)
+
+    def check_changelog_publishing_history(self, processed_file, changelog_content):
         """Check if versions in the changelog have already been published."""
         try:
             # Parse the changelog
@@ -44,9 +44,9 @@ class PublicationHistory(Plugin):
                 package_name = entry.package
                 version_to_check = entry.version
                 distribution = entry.distributions
-                
-                self.logger.debug(f"Checking publication history for {package_name} {version_to_check} in {distribution}")
-                self.check_version_publication(processed_file, package_name, str(version_to_check), distribution)
+
+                self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
+                self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
 
         except Exception as e:
             self.logger.error(f"Error parsing changelog {processed_file.path}: {e}")
@@ -62,20 +62,20 @@ class PublicationHistory(Plugin):
             )
             
             self.create_feedback(
-                message=f"Failed to parse changelog for publication history check: {str(e)}",
-                rule_id=ErrorCode.PUBLICATION_HISTORY_PARSE_ERROR,
+                message=f"Failed to parse changelog for publishing history check: {str(e)}",
+                rule_id=ErrorCode.PUBLISHING_HISTORY_PARSE_ERROR,
                 severity=Severity.WARNING,
                 source_span=source_span
             )
 
-    def check_version_publication(self, processed_file, package_name: str, version_to_check: str, distribution: str):
+    def check_version_publishing(self, processed_file, package_name: str, version_to_check: str, distribution: str):
         """Check if a specific version has been published."""
-        self.logger.debug(f"Checking publication for {package_name} {version_to_check} in {distribution}")
+        self.logger.debug(f"Checking publishing for {package_name} {version_to_check} in {distribution}")
 
         try:
             # Check if we have a Launchpad helper available
             if not hasattr(self, 'lp_helper') or not self.lp_helper:
-                self.logger.warning("Launchpad helper not available for publication history check")
+                self.logger.warning("Launchpad helper not available for publishing history check")
                 return
             
             # Get published sources from Launchpad
@@ -114,7 +114,7 @@ class PublicationHistory(Plugin):
                 
                 self.create_line_feedback(
                     message=f"Version '{version_to_check}' of '{package_name}' is already published in: {', '.join(found_publications)}",
-                    rule_id=ErrorCode.PUBLICATION_HISTORY_ALREADY_PUBLISHED,
+                    rule_id=ErrorCode.PUBLISHING_HISTORY_ALREADY_PUBLISHED,
                     severity=Severity.ERROR,
                     source_span=source_span,
                     target_line_content=version_to_check
@@ -131,7 +131,7 @@ class PublicationHistory(Plugin):
                 
                 self.create_line_feedback(
                     message=f"Newer version(s) of '{package_name}' already published for {distribution}: {'; '.join(newer_versions_info)}. Current version '{version_to_check}' may be outdated.",
-                    rule_id=ErrorCode.PUBLICATION_HISTORY_NEWER_VERSION_EXISTS,
+                    rule_id=ErrorCode.PUBLISHING_HISTORY_NEWER_VERSION_EXISTS,
                     severity=Severity.WARNING,
                     source_span=source_span,
                     target_line_content=version_to_check
@@ -140,17 +140,17 @@ class PublicationHistory(Plugin):
             
             # Log success if no issues found
             if not found_publications and not newer_publications:
-                self.logger.info(f"✅ Version '{version_to_check}' of '{package_name}' not found in publication history and no newer versions exist (good for new uploads)")
+                self.logger.info(f"✅ Version '{version_to_check}' of '{package_name}' not found in publishing history and no newer versions exist (good for new uploads)")
                 
         except Exception as e:
-            self.logger.error(f"Error checking publication history for {package_name} {version_to_check}: {e}")
+            self.logger.error(f"Error checking publishing history for {package_name} {version_to_check}: {e}")
             
             # Create feedback for API errors
             source_span = self.find_version_line_span(processed_file, version_to_check)
             
             self.create_feedback(
-                message=f"Failed to check publication history for {package_name} {version_to_check}: {str(e)}",
-                rule_id=ErrorCode.PUBLICATION_HISTORY_API_ERROR,
+                message=f"Failed to check publishing history for {package_name} {version_to_check}: {str(e)}",
+                rule_id=ErrorCode.PUBLISHING_HISTORY_API_ERROR,
                 severity=Severity.WARNING,
                 source_span=source_span
             )

@@ -115,7 +115,7 @@ Checks are implemented as **plugins**. Current plugins include:
 
 - **`changelog-entry`** – Validates `debian/changelog` entries (distributions, LP bugs, version order)
 - **`patch-format`** – Checks DEP-3 compliance for patches in `debian/patches/`
-- **`publication-history`** – Checks if versions are already published (TODO)
+- **`publishing-history`** – Checks if versions are already published (TODO)
 - **`upload-queue`** – Checks if versions are in the upload queue (TODO)
 
 ---
@@ -309,7 +309,7 @@ sru-lint/
 │   ├── plugins/               # Built-in plugins
 │   │   ├── changelog_entry.py # Changelog validation
 │   │   ├── patch_format.py    # DEP-3 patch format checking
-│   │   ├── publication_history.py
+│   │   ├── publishing_history.py
 │   │   ├── upload_queue.py
 │   │   └── nested/            # Nested plugin example
 │   │       └── dummy_plugin.py
