@@ -5,7 +5,29 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sru_lint.common.feedback import Severity
+
 console = Console()
+
+def _get_severity_style(severity: Optional[Severity] = None) -> str:
+    """
+    Get the appropriate style (color and weight) based on severity level.
+    
+    Args:
+        severity: Severity enum value (Severity.ERROR, Severity.WARNING, Severity.INFO, or None)
+        
+    Returns:
+        Rich style string combining color and weight
+    """
+    print(f"Severity received: {severity}")
+    if severity == Severity.ERROR:
+        return "bold red"
+    elif severity == Severity.WARNING:
+        return "bold yellow"
+    elif severity == Severity.INFO:
+        return "cyan"
+    else:
+        return "bold red"  # Default fallback
 
 def _create_column_pointer(line: str, col: int) -> str:
     """
@@ -72,6 +94,7 @@ def render_snippet(
     start_line: int = 1,
     start_col: int = 1,
     highlight_lines: Optional[Iterable[int]] = None,
+    severity: Optional[Severity] = None,
     annotations: Optional[Dict[int, Union[List[str], List[Tuple[str, int]]]]] = None,
     title: Optional[str] = None,
 ):
@@ -121,11 +144,11 @@ def render_snippet(
                     
                     # Create centered message below the arrow
                     centered_message = _create_centered_message(msg, col, len(raw))
-                    msg_text = Text(centered_message, style="bold red")
+                    msg_text = Text(centered_message, style=_get_severity_style(severity))
                     table.add_row("│", " " * ln_width, msg_text)
                 else:
                     # Simple string annotation without column positioning
-                    msg_text = Text(annotation, style="bold red")
+                    msg_text = Text(annotation, style=_get_severity_style(severity))
                     table.add_row("│", " " * ln_width, msg_text)
 
     group = Group(table)
@@ -158,6 +181,7 @@ def test_render_snippet():
         language="python",
         start_line=10,
         highlight_lines=[1, 3, 5],
+        severity=Severity.ERROR,
         annotations=annotations,
         title="Sample Code with Annotations"
     )

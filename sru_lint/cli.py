@@ -216,6 +216,7 @@ def output_console_feedback(feedback: List[FeedbackItem]):
                         code="\n".join([line.content for line in item.span.lines_added]),
                         title=f"File: {item.span.path}",
                         highlight_lines=[item.span.start_line] if item.span.start_line >= 0 else [],
+                        severity=item.severity,
                         annotations={
                             item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
                         }
