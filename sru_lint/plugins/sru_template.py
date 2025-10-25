@@ -1,3 +1,4 @@
+from sru_lint.common.doc_links import DocLinks
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import Severity
 from sru_lint.common.launchpad_helper import LaunchpadHelper
@@ -31,7 +32,8 @@ class SRUTemplate(Plugin):
                 message=f"No Launchpad bugs referenced in {processed_file.path}",
                 rule_id=ErrorCode.SRU_NO_BUGS_REFERENCED,
                 source_span=processed_file.source_span,
-                severity=Severity.INFO
+                severity=Severity.INFO,
+                doc_url=DocLinks.PATCHING_MAKE_CHANGES
             )
         else:
             self.logger.debug(f"Found Launchpad bugs in {processed_file.path}: {lpbugs}")
@@ -45,7 +47,8 @@ class SRUTemplate(Plugin):
                             message=f"SRU template not found for bug LP: #{bug}",
                             rule_id=ErrorCode.SRU_TEMPLATE_MISSING,
                             source_span=processed_file.source_span,
-                            target_line_content=f"LP: #{bug}"
+                            target_line_content=f"LP: #{bug}",
+                            doc_url=DocLinks.SRU_TEMPLATE_FORMAT
                         )
                 except Exception as e:
                     self.logger.error(f"Error checking SRU template for bug LP: #{bug}: {e}")

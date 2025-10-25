@@ -1,4 +1,5 @@
 from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
+from sru_lint.common.doc_links import DocLinks
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, create_source_span
 from sru_lint.common.parse import find_offset
@@ -42,7 +43,8 @@ class ChangelogEntry(Plugin):
                         rule_id="CHANGELOG001",
                         severity=Severity.ERROR,
                         source_span=source_span,
-                        target_line_content=str(cl.distributions)
+                        target_line_content=str(cl.distributions),
+                        doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES
                     )
                 
                 # Check LP bugs
@@ -54,7 +56,7 @@ class ChangelogEntry(Plugin):
                             rule_id="CHANGELOG002",
                             severity=Severity.WARNING,
                             source_span=source_span,
-                            target_line_content=f"LP: #{lpbug}"
+                            target_line_content=f"LP: #{lpbug}",
                         )
                         
             except Exception as e:
@@ -93,7 +95,8 @@ class ChangelogEntry(Plugin):
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
                     severity=Severity.ERROR,
                     source_span=processed_file.source_span,
-                    target_line_content=prev.version
+                    target_line_content=prev.version,
+                    doc_url=DocLinks.VERSION_STRING_FORMAT
                 )
                 errors_found = True
 
