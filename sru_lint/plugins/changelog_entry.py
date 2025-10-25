@@ -53,7 +53,7 @@ class ChangelogEntry(Plugin):
                     if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
                         self.create_line_feedback(
                             message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
-                            rule_id="CHANGELOG002",
+                            rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
                             severity=Severity.WARNING,
                             source_span=source_span,
                             target_line_content=f"LP: #{lpbug}",

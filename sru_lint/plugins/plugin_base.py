@@ -3,6 +3,7 @@ import re
 from typing import List, Set, Optional
 import fnmatch
 
+from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.common.logging import get_logger
 from sru_lint.common.patch_processor import ProcessedFile
@@ -149,7 +150,7 @@ class Plugin(ABC):
     def create_feedback(
         self, 
         message: str, 
-        rule_id: str, 
+        rule_id: ErrorCode, 
         severity: Severity = Severity.ERROR,
         source_span: Optional[SourceSpan] = None,
         line_number: Optional[int] = None,
@@ -219,7 +220,7 @@ class Plugin(ABC):
     def create_line_feedback(
         self,
         message: str,
-        rule_id: str,
+        rule_id: ErrorCode,
         source_span: SourceSpan,
         target_line_content: str,
         severity: Severity = Severity.ERROR,

@@ -5,6 +5,8 @@ from typing import Optional, List, Dict
 import json
 import uuid
 
+from sru_lint.common.errors import ErrorCode
+
 
 class Severity(str, Enum):
     INFO = "info"
@@ -54,7 +56,7 @@ class FeedbackItem:
     """
     message: str                              # human-readable description
     span: SourceSpan                          # where it happened
-    rule_id: str                              # stable identifier, e.g., "FMT001"
+    rule_id: ErrorCode                        # stable identifier, e.g., "FMT001"
     severity: Severity = Severity.ERROR
     doc_url: Optional[str] = None             # link to more info (optional)
     hint: Optional[str] = None                # short nudge for quick fixes (optional)
