@@ -267,5 +267,6 @@ class Plugin(ABC):
             source_span=source_span,
             line_number=line_number,
             col_start=col_start,
-            col_end=col_end
+            col_end=col_end,
+            doc_url=doc_url
         )

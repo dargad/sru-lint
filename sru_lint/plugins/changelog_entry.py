@@ -40,7 +40,7 @@ class ChangelogEntry(Plugin):
                 if not self.check_distribution(cl.distributions):
                     self.create_line_feedback(
                         message=f"Invalid distribution '{cl.distributions}'",
-                        rule_id="CHANGELOG001",
+                        rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
                         severity=Severity.ERROR,
                         source_span=source_span,
                         target_line_content=str(cl.distributions),
