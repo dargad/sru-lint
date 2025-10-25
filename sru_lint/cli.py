@@ -226,6 +226,8 @@ def output_console_feedback(feedback: List[FeedbackItem]):
                             item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
                         }
                     )
+                if item.doc_url:
+                    typer.secho(f"  More info: {item.doc_url}", fg=typer.colors.CYAN)
         else:
             typer.secho("✅ No issues found", fg=typer.colors.GREEN)
 
