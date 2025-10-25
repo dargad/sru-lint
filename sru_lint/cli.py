@@ -52,7 +52,7 @@ def quiet_callback(value: bool):
 
 def feedback_to_dict(feedback_item):
     """Convert a FeedbackItem to a dictionary for JSON serialization."""
-    return {
+    result = {
         "message": feedback_item.message,
         "rule_id": feedback_item.rule_id,
         "severity": feedback_item.severity.value,
@@ -64,6 +64,11 @@ def feedback_to_dict(feedback_item):
             "end_col": feedback_item.span.end_col,
         }
     }
+
+    if feedback_item.doc_url:
+        result["doc_url"] = feedback_item.doc_url
+
+    return result
 
 def process_module_list(modules: List[str]) -> List[str]:
     """Process comma-separated module names into a flat list."""
@@ -221,6 +226,8 @@ def output_console_feedback(feedback: List[FeedbackItem]):
                             item.span.start_line: [(item.message, item.span.start_col if item.span.start_col >= 0 else 0)]
                         }
                     )
+                if item.doc_url:
+                    typer.secho(f"  More info: {item.doc_url}", fg=typer.colors.CYAN)
         else:
             typer.secho("✅ No issues found", fg=typer.colors.GREEN)
 

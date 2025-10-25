@@ -3,6 +3,7 @@ import re
 from typing import List, Set, Optional
 import fnmatch
 
+from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.common.logging import get_logger
 from sru_lint.common.patch_processor import ProcessedFile
@@ -149,12 +150,13 @@ class Plugin(ABC):
     def create_feedback(
         self, 
         message: str, 
-        rule_id: str, 
+        rule_id: ErrorCode, 
         severity: Severity = Severity.ERROR,
         source_span: Optional[SourceSpan] = None,
         line_number: Optional[int] = None,
         col_start: int = 1,
-        col_end: Optional[int] = None
+        col_end: Optional[int] = None,
+        doc_url: Optional[str] = None
     ) -> FeedbackItem:
         """
         Create a FeedbackItem with proper span information.
@@ -200,7 +202,8 @@ class Plugin(ABC):
             message=message,
             span=feedback_span,
             rule_id=rule_id,
-            severity=severity
+            severity=severity,
+            doc_url=doc_url
         )
         
         # Log the feedback creation based on severity
@@ -217,10 +220,11 @@ class Plugin(ABC):
     def create_line_feedback(
         self,
         message: str,
-        rule_id: str,
+        rule_id: ErrorCode,
         source_span: SourceSpan,
         target_line_content: str,
-        severity: Severity = Severity.ERROR
+        severity: Severity = Severity.ERROR,
+        doc_url: Optional[str] = None
     ) -> FeedbackItem:
         """
         Create feedback for a specific line content found in the source span.
@@ -231,6 +235,7 @@ class Plugin(ABC):
             source_span: The source span to search in
             target_line_content: The line content to search for
             severity: The severity level
+            doc_url: Optional documentation URL for the feedback that may be helpful to fix the issue
             
         Returns:
             The created FeedbackItem (also automatically added to self.feedback)
@@ -263,5 +268,6 @@ class Plugin(ABC):
             source_span=source_span,
             line_number=line_number,
             col_start=col_start,
-            col_end=col_end
+            col_end=col_end,
+            doc_url=doc_url
         )

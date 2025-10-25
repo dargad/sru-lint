@@ -5,6 +5,8 @@ from typing import Optional, List, Dict
 import json
 import uuid
 
+from sru_lint.common.errors import ErrorCode
+
 
 class Severity(str, Enum):
     INFO = "info"
@@ -54,7 +56,7 @@ class FeedbackItem:
     """
     message: str                              # human-readable description
     span: SourceSpan                          # where it happened
-    rule_id: str                              # stable identifier, e.g., "FMT001"
+    rule_id: ErrorCode                        # stable identifier, e.g., "FMT001"
     severity: Severity = Severity.ERROR
     doc_url: Optional[str] = None             # link to more info (optional)
     hint: Optional[str] = None                # short nudge for quick fixes (optional)
@@ -78,6 +80,11 @@ class FeedbackItem:
             "fixits": [f.to_dict() for f in self.fixits],
             "meta": dict(self.meta),
         }
+    
+    def __str__(self) -> str:
+        """String representation of the feedback item."""
+        location = f"{self.span.path}:{self.span.start_line}:{self.span.start_col}"
+        return f"{location}: {self.severity.value}: [{self.rule_id}] {self.message}"
 
 
 @dataclass
@@ -88,7 +95,7 @@ class FeedbackReport:
     tool_name: str
     tool_version: str
     items: List[FeedbackItem] = field(default_factory=list)
-    summary: Dict[str, int] = field(default_factory=dict)  # you can fill counts per severity, rule, etc.
+    summary: Dict[str, int] = field(default_factory=dict)
 
     def add(self, item: FeedbackItem) -> None:
         self.items.append(item)
@@ -187,21 +194,6 @@ class SourceSpan:
     def is_empty(self) -> bool:
         """Check if the span has no added content."""
         return len(self.lines_added) == 0 or all(line.content.strip() == "" for line in self.lines_added)
-
-
-
-@dataclass
-class FeedbackItem:
-    """Represents a single piece of feedback from a plugin."""
-    message: str
-    span: SourceSpan
-    rule_id: str
-    severity: Severity = Severity.ERROR
-    
-    def __str__(self) -> str:
-        """String representation of the feedback item."""
-        location = f"{self.span.path}:{self.span.start_line}:{self.span.start_col}"
-        return f"{location}: {self.severity.value}: [{self.rule_id}] {self.message}"
 
 
 def create_source_span_from_patch(patched_file, include_context: bool = True) -> SourceSpan:

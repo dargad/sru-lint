@@ -1,4 +1,5 @@
 from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
+from sru_lint.common.doc_links import DocLinks
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, create_source_span
 from sru_lint.common.parse import find_offset
@@ -39,10 +40,11 @@ class ChangelogEntry(Plugin):
                 if not self.check_distribution(cl.distributions):
                     self.create_line_feedback(
                         message=f"Invalid distribution '{cl.distributions}'",
-                        rule_id="CHANGELOG001",
+                        rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
                         severity=Severity.ERROR,
                         source_span=source_span,
-                        target_line_content=str(cl.distributions)
+                        target_line_content=str(cl.distributions),
+                        doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES
                     )
                 
                 # Check LP bugs
@@ -51,10 +53,10 @@ class ChangelogEntry(Plugin):
                     if not self.lp_helper.is_bug_targeted(lpbug, cl.get_package(), cl.distributions):
                         self.create_line_feedback(
                             message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
-                            rule_id="CHANGELOG002",
+                            rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
                             severity=Severity.WARNING,
                             source_span=source_span,
-                            target_line_content=f"LP: #{lpbug}"
+                            target_line_content=f"LP: #{lpbug}",
                         )
                         
             except Exception as e:
@@ -93,7 +95,8 @@ class ChangelogEntry(Plugin):
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
                     severity=Severity.ERROR,
                     source_span=processed_file.source_span,
-                    target_line_content=prev.version
+                    target_line_content=prev.version,
+                    doc_url=DocLinks.VERSION_STRING_FORMAT
                 )
                 errors_found = True
 

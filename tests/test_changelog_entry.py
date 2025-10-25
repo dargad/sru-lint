@@ -110,7 +110,7 @@ class TestChangelogEntry(unittest.TestCase):
         # Should create feedback for invalid distribution
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertEqual(feedback.rule_id, "CHANGELOG001")
+        self.assertEqual(feedback.rule_id, ErrorCode.CHANGELOG_INVALID_DISTRIBUTION)
         self.assertEqual(feedback.severity, Severity.ERROR)
         self.assertIn("Invalid distribution", feedback.message)
 
@@ -136,7 +136,7 @@ class TestChangelogEntry(unittest.TestCase):
         # Should create feedback for untargeted bug
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertEqual(feedback.rule_id, "CHANGELOG002")
+        self.assertEqual(feedback.rule_id, ErrorCode.CHANGELOG_BUG_NOT_TARGETED)
         self.assertEqual(feedback.severity, Severity.WARNING)
         self.assertIn("Bug LP: #123456 is not targeted", feedback.message)
 
@@ -164,7 +164,7 @@ class TestChangelogEntry(unittest.TestCase):
         # Should create feedback only for untargeted bug
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertEqual(feedback.rule_id, "CHANGELOG002")
+        self.assertEqual(feedback.rule_id, ErrorCode.CHANGELOG_BUG_NOT_TARGETED)
         self.assertIn("Bug LP: #789012 is not targeted", feedback.message)
 
     def test_process_file_empty_content(self):
@@ -393,12 +393,14 @@ class TestChangelogEntry(unittest.TestCase):
         # Check that we have the expected types of feedback
         rule_ids = [f.rule_id for f in self.plugin.feedback]
         
+        print(self.plugin.feedback)
+        
         # Should have at least one invalid distribution error
-        self.assertIn("CHANGELOG001", rule_ids)  # Invalid distribution
-        
-        # Should have two untargeted bug warnings  
-        self.assertEqual(rule_ids.count("CHANGELOG002"), 2)  # Two untargeted bugs
-        
+        self.assertIn(ErrorCode.CHANGELOG_INVALID_DISTRIBUTION, rule_ids)  # Invalid distribution
+
+        # Should have two untargeted bug warnings
+        self.assertEqual(rule_ids.count(ErrorCode.CHANGELOG_BUG_NOT_TARGETED), 2)  # Two untargeted bugs
+
         # The plugin is generating 4 items, so let's accept that
         self.assertEqual(len(self.plugin.feedback), 4)
 

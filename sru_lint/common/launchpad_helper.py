@@ -225,6 +225,30 @@ class LaunchpadHelper:
         logger.debug(f"Extracted {len(bug_numbers)} LP bug numbers from text: {bug_numbers}")
         return bug_numbers
     
+    @staticmethod
+    def get_upload_queue_url(package_name: str, distribution: str) -> str:
+        """
+        Construct the Launchpad upload queue URL for a package and distribution.
+        
+        Args:
+            package_name: The package name
+            distribution: The distribution name (e.g., 'jammy', 'focal')
+        Returns:
+            The URL string to the upload queue page
+        """
+        return f"https://launchpad.net/ubuntu/{distribution}/+queue?queue_state=1&queue_text={package_name}"
+    
+    def get_publishing_history_url(package_name: str) -> str:
+        """
+        Construct the Launchpad publishing history URL for a package.
+        
+        Args:
+            package_name: The package name
+        Returns:
+            The URL string to the publishing history page
+        """
+        return f"https://launchpad.net/ubuntu/+source/{package_name}/+publishinghistory"
+    
     def has_sru_template(self, bug_number: int) -> bool:
         """
         Check if a bug has the SRU template applied in its description.

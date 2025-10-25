@@ -2,6 +2,8 @@ import re
 from os.path import expanduser
 from debian import changelog
 
+from sru_lint.common.doc_links import DocLinks
+from sru_lint.common.launchpad_helper import LaunchpadHelper
 from sru_lint.common.patches import combine_added_lines, make_end_filename_matcher, match_hunks
 from sru_lint.common.parse import REVIEW_STATES, UNRELEASED_DISTRIBUTION, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
@@ -68,7 +70,8 @@ class UploadQueue(Plugin):
                 message=f"Failed to parse changelog for upload queue check: {str(e)}",
                 rule_id=ErrorCode.UPLOAD_QUEUE_PARSE_ERROR,
                 severity=Severity.WARNING,
-                source_span=source_span
+                source_span=source_span,
+                doc_url=DocLinks.CHANGELOG_FORMAT
             )
 
     def check_upload_queue(self, processed_file, package_name: str, suites: list[str], version_to_check: str):
@@ -93,7 +96,8 @@ class UploadQueue(Plugin):
                         rule_id=ErrorCode.UPLOAD_QUEUE_UNRELEASED,
                         severity=Severity.WARNING,
                         source_span=processed_file.source_span,
-                        target_line_content=base
+                        target_line_content=base,
+                        doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES
                     )
                     continue
                 
@@ -121,7 +125,8 @@ class UploadQueue(Plugin):
                                 rule_id=ErrorCode.UPLOAD_QUEUE_ALREADY_QUEUED,
                                 severity=Severity.WARNING,  # Could be ERROR depending on policy
                                 source_span=processed_file.source_span,
-                                target_line_content=version_to_check
+                                target_line_content=version_to_check,
+                                doc_url=LaunchpadHelper.get_upload_queue_url(package_name, suite)
                             )
                     else:
                         self.logger.info(f"✅ No review-queue uploads for {package_name} in {ds.name} (good for new uploads)")
@@ -136,7 +141,8 @@ class UploadQueue(Plugin):
                         message=f"Failed to check upload queue for {package_name} in suite {suite}: {str(suite_error)}",
                         rule_id=ErrorCode.UPLOAD_QUEUE_API_ERROR,
                         severity=Severity.WARNING,
-                        source_span=source_span
+                        source_span=source_span, 
+                        doc_url=LaunchpadHelper.get_upload_queue_url(package_name, suite)
                     )
                 
         except Exception as e:

@@ -1,3 +1,4 @@
+from sru_lint.common.launchpad_helper import LaunchpadHelper
 from sru_lint.common.parse import UNRELEASED_DISTRIBUTION, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
 from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
@@ -119,7 +120,8 @@ class PublishingHistory(Plugin):
                     rule_id=ErrorCode.PUBLISHING_HISTORY_ALREADY_PUBLISHED,
                     severity=Severity.ERROR,
                     source_span=source_span,
-                    target_line_content=version_to_check
+                    target_line_content=version_to_check,
+                    doc_url=LaunchpadHelper.get_publishing_history_url(package_name)
                 )
                 self.logger.warning(f"Version {package_name} {version_to_check} already published")
             
@@ -136,7 +138,8 @@ class PublishingHistory(Plugin):
                     rule_id=ErrorCode.PUBLISHING_HISTORY_NEWER_VERSION_EXISTS,
                     severity=Severity.WARNING,
                     source_span=source_span,
-                    target_line_content=version_to_check
+                    target_line_content=version_to_check,
+                    doc_url=LaunchpadHelper.get_publishing_history_url(package_name)
                 )
                 self.logger.warning(f"Newer versions of {package_name} already published for {distribution}")
             
