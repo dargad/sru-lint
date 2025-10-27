@@ -265,18 +265,19 @@ class LaunchpadHelper:
         self.logger.debug(f"Checking SRU template for bug #{bug_number}")
         description = bug.description or ""
         
-        # Simple check for SRU template keywords in the description
-        sru_keywords = [
-            "[ Impact ]",
-            "[ Test Plan ]",
-            "[ Where problems could occur ]"
+        # Check for SRU template keywords with flexible spacing around square brackets
+        # Patterns match with and without spaces after/before square brackets
+        sru_keyword_patterns = [
+            r'\[\s*Impact\s*\]',
+            r'\[\s*Test\s+Plan\s*\]',
+            r'\[\s*Where\s+problems\s+could\s+occur\s*\]'
         ]
 
         keywords_found = 0
         
-        for keyword in sru_keywords:
-            if keyword in description:
-                self.logger.debug(f"Found SRU template keyword '{keyword}' in bug #{bug_number}")
+        for pattern in sru_keyword_patterns:
+            if re.search(pattern, description, re.IGNORECASE):
+                self.logger.debug(f"Found SRU template keyword pattern '{pattern}' in bug #{bug_number}")
                 keywords_found += 1
 
         self.logger.debug(f"LP: #{bug_number} has {keywords_found} SRU template keywords")
