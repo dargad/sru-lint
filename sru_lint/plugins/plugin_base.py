@@ -29,6 +29,12 @@ class Plugin(ABC):
         self.logger = get_logger(f"plugins.{self.__symbolic_name__}")
         self.register_file_patterns()
 
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
     @staticmethod
     def _generate_symbolic_name(name: str) -> str:
         # strip leading underscores, split Camel/PascalCase (keeps acronyms), include digits

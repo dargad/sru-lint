@@ -147,9 +147,14 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
     if output_format == OutputFormat.json or global_options.quiet:
         for plugin in plugins:
             logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-            plugin_feedback = plugin.process(processed_files)
-            feedback.extend(plugin_feedback)
+            
+            with plugin as p:
+                plugin.process(processed_files)
+
+            plugin_feedback = plugin.feedback
+            feedback.extend(plugin.feedback)
             logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
+            
     else:
         # Show progress with rich progress bar
         with Progress(
@@ -166,8 +171,11 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
                 
                 logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
                 start_time = time.time()
-                
-                plugin_feedback = plugin.process(processed_files)
+
+                with plugin as p:
+                    plugin.process(processed_files)
+
+                plugin_feedback = plugin.feedback
                 feedback.extend(plugin_feedback)
                 
                 elapsed = time.time() - start_time

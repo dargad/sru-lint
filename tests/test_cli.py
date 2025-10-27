@@ -9,6 +9,7 @@ from sru_lint.plugins.plugin_base import ProcessedFile
 
 # for CI environments that may not support colors
 import os
+
 os.environ["TERM"] = "dumb"
 os.environ["NO_COLOR"] = "1"
 os.environ["FORCE_COLOR"] = "0"
@@ -495,13 +496,17 @@ class TestCLI(unittest.TestCase):
         mock_plugin1 = MagicMock()
         mock_plugin1.__symbolic_name__ = 'plugin1'
         mock_plugin1.process.return_value = [error_feedback, warning_feedback, info_feedback]
+        mock_plugin1.feedback = [error_feedback, warning_feedback, info_feedback]
         mock_pm.load_plugins.return_value = [mock_plugin1]
         
         mock_processed_files = [ProcessedFile(path="test.py", source_span=MagicMock())]
         mock_process_patch.return_value = mock_processed_files
         
         result = self.runner.invoke(app, ['check', '-'], input='patch content')
-        
+
+        print(result.stdout)
+        print(result.stderr)
+
         self.assertEqual(result.exit_code, 1)  # Should exit with error due to error feedback
         self.assertIn('Error message', result.stdout)
         self.assertIn('Warning message', result.stdout)
