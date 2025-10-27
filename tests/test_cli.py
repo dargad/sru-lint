@@ -155,6 +155,7 @@ class TestCLI(unittest.TestCase):
         mock_plugin1 = MagicMock()
         mock_plugin1.__symbolic_name__ = 'plugin1'
         mock_plugin1.process.return_value = [error_feedback]
+        mock_plugin1.feedback = [error_feedback]
         mock_pm.load_plugins.return_value = [mock_plugin1]
         
         mock_processed_files = [ProcessedFile(path="test.py", source_span=MagicMock())]
@@ -184,6 +185,7 @@ class TestCLI(unittest.TestCase):
         mock_plugin1 = MagicMock()
         mock_plugin1.__symbolic_name__ = 'plugin1'
         mock_plugin1.process.return_value = [warning_feedback]
+        mock_plugin1.feedback = [warning_feedback]
         mock_pm.load_plugins.return_value = [mock_plugin1]
         
         mock_processed_files = [ProcessedFile(path="test.py", source_span=MagicMock())]
