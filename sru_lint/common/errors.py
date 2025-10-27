@@ -28,6 +28,8 @@ class ErrorCode(Enum):
     SRU_LP_API_ERROR = "LPBUG002"
     SRU_NO_BUGS_REFERENCED = "LPBUG003"
 
+    CONTROL_MAINTAINER_NOT_UPDATED = "CTRL001"
+
 class ErrorEnumEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles Enum serialization."""
     

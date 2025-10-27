@@ -30,9 +30,15 @@ class Plugin(ABC):
         self.register_file_patterns()
 
     def __enter__(self):
+        self.logger.debug(f"Entering plugin context: {self.__symbolic_name__}")
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
+        self.logger.debug(f"Exiting plugin context: {self.__symbolic_name__}")
+        self.post_process()
+
+    def post_process(self):
+        """Hook for any post-processing after all files have been processed."""
         pass
 
     @staticmethod
