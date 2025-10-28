@@ -29,6 +29,18 @@ class Plugin(ABC):
         self.logger = get_logger(f"plugins.{self.__symbolic_name__}")
         self.register_file_patterns()
 
+    def __enter__(self):
+        self.logger.debug(f"Entering plugin context: {self.__symbolic_name__}")
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.logger.debug(f"Exiting plugin context: {self.__symbolic_name__}")
+        self.post_process()
+
+    def post_process(self):
+        """Hook for any post-processing after all files have been processed."""
+        pass
+
     @staticmethod
     def _generate_symbolic_name(name: str) -> str:
         # strip leading underscores, split Camel/PascalCase (keeps acronyms), include digits

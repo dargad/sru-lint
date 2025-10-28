@@ -37,7 +37,7 @@ def configure_logging():
         log_level = logging.INFO
     else:
         log_level = logging.WARNING
-    
+
     setup_logger(level=log_level)
 
 def verbose_callback(value: int):
@@ -73,55 +73,55 @@ def feedback_to_dict(feedback_item):
 def process_module_list(modules: List[str]) -> List[str]:
     """Process comma-separated module names into a flat list."""
     logger = get_logger("cli")
-    
+
     expanded_modules = []
     for module_item in modules:
         # Split by comma and strip whitespace
         expanded_modules.extend([m.strip() for m in module_item.split(',')])
-    
+
     # Remove empty items
     expanded_modules = [m for m in expanded_modules if m]
     logger.debug(f"Modules to run: {expanded_modules}")
-    
+
     return expanded_modules
 
 def read_input_content(infile: typer.FileText) -> str:
     """Read patch content from input file."""
     logger = get_logger("cli")
     logger.debug(f"Reading patch from {infile.name}")
-    
+
     patch_content = infile.read()
     logger.debug(f"Read {len(patch_content)} characters from input")
-    
+
     return patch_content
 
 def process_input_to_files(patch_content: str):
     """Convert patch content to ProcessedFile objects."""
     logger = get_logger("cli")
-    
+
     processed_files = process_patch_content(patch_content)
     if not processed_files:
         logger.error("No files found in patch or failed to parse patch")
         raise typer.Exit(code=2)
-    
+
     logger.info(f"Converted patch to {len(processed_files)} processed files")
     return processed_files
 
 def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
     """Load plugins and filter them based on specified modules."""
     logger = get_logger("cli")
-    
+
     # Load all plugins
     pm = PluginManager()
     plugins = pm.load_plugins()
     logger.debug(f"Loaded {len(plugins)} plugins")
-    
+
     # Filter plugins based on modules
     if "all" not in modules:
         filtered_plugins = [p for p in plugins if p.__symbolic_name__ in modules]
         if not filtered_plugins:
             logger.warning(f"No plugins found matching the specified modules: {', '.join(modules)}")
-            
+
             if output_format == OutputFormat.console:
                 typer.echo("Available modules:")
                 for plugin in plugins:
@@ -130,26 +130,31 @@ def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
                 # For JSON format, output empty array when no modules found
                 typer.echo(json.dumps([]))
             return []
-        
+
         plugins = filtered_plugins
         logger.info(f"Filtered to {len(plugins)} plugins: {[p.__symbolic_name__ for p in plugins]}")
-    
+
     logger.info(f"Running {len(plugins)} plugins")
     return plugins
 
 def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[FeedbackItem]:
     """Run all plugins on the processed files and collect feedback."""
     logger = get_logger("cli")
-    
+
     feedback = []
-    
+
     # Don't show progress in JSON mode or if quiet
     if output_format == OutputFormat.json or global_options.quiet:
         for plugin in plugins:
             logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-            plugin_feedback = plugin.process(processed_files)
-            feedback.extend(plugin_feedback)
+
+            with plugin as p:
+                plugin.process(processed_files)
+
+            plugin_feedback = plugin.feedback
+            feedback.extend(plugin.feedback)
             logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
+
     else:
         # Show progress with rich progress bar
         with Progress(
@@ -159,41 +164,44 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
             console=console,
             transient=True  # Remove progress bar when done
         ) as progress:
-            
+
             for plugin in plugins:
                 # Create a task for this plugin
                 task = progress.add_task(f"Running {plugin.__symbolic_name__}...", total=None)
-                
+
                 logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
                 start_time = time.time()
-                
-                plugin_feedback = plugin.process(processed_files)
+
+                with plugin as p:
+                    plugin.process(processed_files)
+
+                plugin_feedback = plugin.feedback
                 feedback.extend(plugin_feedback)
-                
+
                 elapsed = time.time() - start_time
                 logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s")
-                
+
                 # Update task description to show completion
                 progress.update(task, description=f"✓ {plugin.__symbolic_name__} ({len(plugin_feedback)} items)")
-                
+
                 # Brief pause to show the completed status
                 time.sleep(0.1)
-                
+
                 # Remove the completed task
                 progress.remove_task(task)
-    
+
     return feedback
 
 def analyze_feedback(feedback: List[FeedbackItem]) -> Tuple[int, int, int]:
     """Analyze feedback and count items by severity."""
     logger = get_logger("cli")
-    
+
     error_count = sum(1 for item in feedback if item.severity.value == "error")
     warning_count = sum(1 for item in feedback if item.severity.value == "warning")
     info_count = sum(1 for item in feedback if item.severity.value == "info")
-    
+
     logger.info(f"Collected {len(feedback)} feedback items: {error_count} errors, {warning_count} warnings, {info_count} info")
-    
+
     return error_count, warning_count, info_count
 
 def output_json_feedback(feedback: List[FeedbackItem]):
@@ -242,17 +250,17 @@ def show_processing_summary(processed_files, plugins, output_format: OutputForma
     """Show a summary of what will be processed."""
     if output_format == OutputFormat.json or global_options.quiet:
         return
-    
+
     file_count = len(processed_files)
     plugin_count = len(plugins)
-    
+
     console.print(f"[blue]Processing {file_count} file(s) with {plugin_count} plugin(s)...[/blue]")
-    
+
     if global_options.verbose >= 1:
         console.print("[dim]Files:[/dim]")
         for f in processed_files:
             console.print(f"  [dim]• {f.path}[/dim]")
-        
+
         console.print("[dim]Plugins:[/dim]")
         for p in plugins:
             console.print(f"  [dim]• {p.__symbolic_name__}[/dim]")
@@ -290,7 +298,7 @@ def check(
         "-", metavar="FILE", help="File to read, or '-' for stdin"
     ),
     modules: Optional[list[str]] = typer.Option(
-        ["all"], "--modules", "-m", 
+        ["all"], "--modules", "-m",
         help="Only run the specified module(s). Default is 'all'. Can be specified as comma-separated list or multiple times"
     ),
     format: OutputFormat = typer.Option(
@@ -303,31 +311,31 @@ def check(
     """
     logger = get_logger("cli")
     logger.debug(f"Output format: {format}")
-    
+
     # Process input parameters
     expanded_modules = process_module_list(modules)
-    
+
     # Read and process input
     patch_content = read_input_content(infile)
     processed_files = process_input_to_files(patch_content)
-    
+
     # Load and filter plugins
     plugins = load_and_filter_plugins(expanded_modules, format)
     if not plugins:
         return  # Early exit if no plugins found
-    
+
     # Show processing summary
     show_processing_summary(processed_files, plugins, format)
-    
+
     # Run plugins and collect feedback
     feedback = run_plugins(plugins, processed_files, format)
-    
+
     # Analyze feedback
     error_count, warning_count, info_count = analyze_feedback(feedback)
-    
+
     # Output results
     output_feedback(feedback, format)
-    
+
     # Exit with error code if there are any errors
     if error_count > 0:
         logger.error(f"Found {error_count} error(s)")
@@ -340,20 +348,20 @@ def plugins():
     List all available plugins.
     """
     logger = get_logger("cli")
-    
+
     typer.echo("Available plugins:")
-    
+
     pm = PluginManager()
     plugins = pm.load_plugins()
     logger.debug(f"Loaded {len(plugins)} plugins")
-    
+
     if not plugins:
         typer.echo("No plugins found.")
         return
-    
+
     # Calculate the maximum length of plugin names for alignment
     max_name_length = max(len(plugin.__symbolic_name__) for plugin in plugins)
-    
+
     for plugin in plugins:
         # Get the class name
         plugin_name = plugin.__symbolic_name__
