@@ -8,12 +8,13 @@ from debian.deb822 import Deb822
 from debian.debian_support import Version
 
 
-class UpdateMaintainerPlugin(Plugin):
+class UpdateMaintainer(Plugin):
     """Checks whether the maintainer information in debian/control is up to date."""
 
     MAINTAINER_FIELD = "Maintainer"
     MAINTAINER_EXPECTED = "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
     ORIGINAL_MAINTAINER_FIELD = "XSBC-Original-Maintainer"
+    UBUNTU_IN_DEBIAN_REVISION = "ubuntu"
 
     def __init__(self):
         super().__init__()
@@ -30,23 +31,29 @@ class UpdateMaintainerPlugin(Plugin):
         self.logger.info(f"Processing file for maintainer update: {processed_file.path}")
         
         if processed_file.path.endswith("debian/changelog"):
-            headers = self.find_changelog_headers(processed_file)
-            if self.is_update_maintainer_needed(headers):
-                self.logger.info(f"Maintainer update needed for {processed_file.path}")
-                self.expect_control = True
+            self.process_changelog(processed_file)
         elif processed_file.path.endswith("debian/control"):
-            control_data = Deb822(processed_file.source_span.content_with_context)
-            maintainer = original_maintainer = None
+            self.process_control(processed_file)
 
-            if self.MAINTAINER_FIELD in control_data:
-                maintainer = control_data[self.MAINTAINER_FIELD]
+    def process_control(self, processed_file):
+        control_data = Deb822(processed_file.source_span.content_with_context)
+        maintainer = original_maintainer = None
 
-            if self.ORIGINAL_MAINTAINER_FIELD in control_data:
-                original_maintainer = control_data[self.ORIGINAL_MAINTAINER_FIELD]
+        if self.MAINTAINER_FIELD in control_data:
+            maintainer = control_data[self.MAINTAINER_FIELD]
 
-            if maintainer == self.MAINTAINER_EXPECTED and original_maintainer:
-                self.logger.info(f"Maintainer correctly updated in {processed_file.path}")
-                self.control_checked = True
+        if self.ORIGINAL_MAINTAINER_FIELD in control_data:
+            original_maintainer = control_data[self.ORIGINAL_MAINTAINER_FIELD]
+
+        if maintainer == self.MAINTAINER_EXPECTED and original_maintainer:
+            self.logger.info(f"Maintainer correctly updated in {processed_file.path}")
+            self.control_checked = True
+
+    def process_changelog(self, processed_file):
+        headers = self.find_changelog_headers(processed_file)
+        if self.is_update_maintainer_needed(headers):
+            self.logger.info(f"Maintainer update needed for {processed_file.path}")
+            self.expect_control = True
 
     def is_update_maintainer_needed(self, headers):
         if headers and len(headers) > 1:
@@ -54,10 +61,10 @@ class UpdateMaintainerPlugin(Plugin):
         return False
     
     def is_ubuntu_version(self, header):
-        # TODO: implement Ubuntu version check
         try:
             version = Version(header.version)
-            return version.is_ubuntu()
+            print(f"Checking version: {header.version} parsed as {version}")
+            return self.UBUNTU_IN_DEBIAN_REVISION in version.debian_revision
         except Exception as e:
             self.logger.error(f"Error parsing version '{header.version}': {e}")
             return False
