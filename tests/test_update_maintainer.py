@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from sru_lint.plugins.update_maintainer import UpdateMaintainer
 from sru_lint.plugins.plugin_base import ProcessedFile
 from sru_lint.common.feedback import SourceSpan, SourceLine, Severity
-from sru_lint.common.debian.changelog import DebianChangelogHeader
+from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
 from sru_lint.common.errors import ErrorCode
 from debian.debian_support import Version
 
@@ -214,7 +214,10 @@ class TestUpdateMaintainer(unittest.TestCase):
         # Mock find_changelog_headers to return headers indicating update needed
         with patch.object(self.plugin, 'find_changelog_headers') as mock_find:
             with patch.object(self.plugin, 'is_update_maintainer_needed') as mock_needed:
-                mock_find.return_value = ["header1", "header2"]
+                mock_find.return_value = [
+                    parse_header("package (1.0-2ubuntu1) focal; urgency=medium"),
+                    parse_header("package (1.0-1) focal; urgency=medium")
+                ]
                 mock_needed.return_value = True
                 
                 self.plugin.process_file(processed_file)
@@ -317,17 +320,32 @@ class TestUpdateMaintainer(unittest.TestCase):
     def test_post_process_control_missing_warning(self):
         """Test post_process creates warning when control file is expected but missing"""
         # Set up scenario where control is expected but not checked
+        changelog_content = [
+            "package (1.0-2ubuntu1) focal; urgency=medium",
+            "",
+            "  * Some changes",
+            "",
+            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000"
+        ]
+        processed_file = create_test_processed_file("debian/changelog", changelog_content)
+
         self.plugin.expect_control = True
         self.plugin.control_checked = False
-        
-        with patch.object(self.plugin, 'create_feedback') as mock_create_feedback:
+        self.plugin.changelog = processed_file
+        self.plugin.version = "2ubuntu1"
+
+        with patch.object(self.plugin, 'create_line_feedback') as mock_create_line_feedback:
             self.plugin.post_process()
+
+            print( self.plugin.feedback)
             
-            mock_create_feedback.assert_called_once_with(
-                message="debian/control file is missing but required for maintainer update check.",
+            mock_create_line_feedback.assert_called_once_with(
+                message="Version number suggests Ubuntu changes, but Maintainer: does not have Ubuntu address.",
                 rule_id=ErrorCode.CONTROL_MAINTAINER_NOT_UPDATED,
                 severity=Severity.WARNING,
-                doc_url="https://documentation.ubuntu.com/project/how-ubuntu-is-made/concepts/debian-directory/#the-control-file"
+                source_span=self.plugin.changelog.source_span,
+                doc_url="https://documentation.ubuntu.com/project/how-ubuntu-is-made/concepts/debian-directory/#the-control-file",
+                target_line_content=self.plugin.version
             )
 
     def test_post_process_control_not_expected(self):

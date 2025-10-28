@@ -113,7 +113,7 @@ class UpdateMaintainer(Plugin):
         if not self.control_checked and self.expect_control:
             self.logger.warning("debian/control file was expected but not found for maintainer update check.")
             self.create_line_feedback(
-                message="Version number suggests Ubuntu changes, but Maintainer: does not have Ubuntu address",
+                message="Version number suggests Ubuntu changes, but Maintainer: does not have Ubuntu address.",
                 rule_id=ErrorCode.CONTROL_MAINTAINER_NOT_UPDATED,
                 severity=Severity.WARNING,
                 doc_url="https://documentation.ubuntu.com/project/how-ubuntu-is-made/concepts/debian-directory/#the-control-file",
