@@ -13,25 +13,6 @@ class Severity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
 
-
-@dataclass(frozen=True)
-class SourceSpan:
-    """
-    Pinpoints where an issue occurs. Ranges are inclusive of start and exclusive of end.
-    Both line/column and byte offsets are stored for robust rendering.
-    """
-    path: str                               # absolute or repo-relative path to the file
-    start_line: int                          # 1-based
-    start_col: int                           # 1-based, count of Unicode columns
-    end_line: int                            # 1-based
-    end_col: int                             # 1-based
-    start_offset: int                        # 0-based byte (or char) offset from file start
-    end_offset: int                          # 0-based
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
-
-
 @dataclass
 class FixIt:
     """
