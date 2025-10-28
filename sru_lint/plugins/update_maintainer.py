@@ -63,7 +63,6 @@ class UpdateMaintainer(Plugin):
     def is_ubuntu_version(self, header):
         try:
             version = Version(header.version)
-            print(f"Checking version: {header.version} parsed as {version}")
             return self.UBUNTU_IN_DEBIAN_REVISION in version.debian_revision
         except Exception as e:
             self.logger.error(f"Error parsing version '{header.version}': {e}")
