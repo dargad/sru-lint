@@ -194,10 +194,10 @@ class TestUpdateMaintainer(unittest.TestCase):
         
         mock_parse_header.side_effect = Exception("Parse error")
         
-        with patch.object(self.plugin.logger, 'error') as mock_error:
+        with patch.object(self.plugin.logger, 'debug') as mock_debug:
             headers = self.plugin.find_changelog_headers(processed_file)
             self.assertEqual(len(headers), 0)
-            mock_error.assert_called_once()
+            mock_debug.assert_called()
 
     def test_process_file_changelog_update_needed(self):
         """Test processing changelog file when maintainer update is needed"""

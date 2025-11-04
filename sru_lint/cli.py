@@ -2,6 +2,9 @@ from typing import Optional, List, Tuple
 import logging
 import json
 import time
+import urllib.request
+import urllib.parse
+import sys
 
 from sru_lint.common.errors import ErrorEnumEncoder
 from sru_lint.common.ui.snippet import render_snippet
@@ -85,13 +88,54 @@ def process_module_list(modules: List[str]) -> List[str]:
 
     return expanded_modules
 
-def read_input_content(infile: typer.FileText) -> str:
-    """Read patch content from input file."""
-    logger = get_logger("cli")
-    logger.debug(f"Reading patch from {infile.name}")
+def is_url(input_str: str) -> bool:
+    """Check if the input string is a URL."""
+    parsed = urllib.parse.urlparse(input_str)
+    return parsed.scheme in ('http', 'https')
 
-    patch_content = infile.read()
-    logger.debug(f"Read {len(patch_content)} characters from input")
+def fetch_url_content(url: str) -> str:
+    """Fetch content from a URL."""
+    logger = get_logger("cli")
+    logger.debug(f"Fetching content from URL: {url}")
+    
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            content = response.read().decode('utf-8')
+            logger.debug(f"Fetched {len(content)} characters from URL")
+            return content
+    except Exception as e:
+        logger.error(f"Failed to fetch content from URL {url}: {e}")
+        typer.echo(f"Error: Failed to fetch content from URL: {e}", err=True)
+        raise typer.Exit(code=2)
+
+def read_input_content(input_source: str) -> str:
+    """Read patch content from input source (file path, URL, or stdin)."""
+    logger = get_logger("cli")
+    
+    if input_source == "-":
+        # Read from stdin
+        logger.debug("Reading patch from stdin")
+        patch_content = sys.stdin.read()
+        logger.debug(f"Read {len(patch_content)} characters from stdin")
+    elif is_url(input_source):
+        # Fetch from URL
+        logger.debug(f"Fetching patch from URL: {input_source}")
+        patch_content = fetch_url_content(input_source)
+    else:
+        # Read from file path
+        logger.debug(f"Reading patch from file: {input_source}")
+        try:
+            with open(input_source, 'r', encoding='utf-8') as file:
+                patch_content = file.read()
+            logger.debug(f"Read {len(patch_content)} characters from file")
+        except FileNotFoundError:
+            logger.error(f"File not found: {input_source}")
+            typer.echo(f"Error: File not found: {input_source}", err=True)
+            raise typer.Exit(code=2)
+        except Exception as e:
+            logger.error(f"Error reading file {input_source}: {e}")
+            typer.echo(f"Error reading file: {e}", err=True)
+            raise typer.Exit(code=2)
 
     return patch_content
 
@@ -294,8 +338,8 @@ def main(
 
 @app.command()
 def check(
-    infile: typer.FileText = typer.Argument(
-        "-", metavar="FILE", help="File to read, or '-' for stdin"
+    input_source: str = typer.Argument(
+        "-", metavar="INPUT", help="File path, URL, or '-' for stdin"
     ),
     modules: Optional[list[str]] = typer.Option(
         ["all"], "--modules", "-m",
@@ -307,7 +351,7 @@ def check(
     ),
 ):
     """
-    Run the linter on the specified patch.
+    Run the linter on the specified patch from a file, URL, or stdin.
     """
     logger = get_logger("cli")
     logger.debug(f"Output format: {format}")
@@ -316,7 +360,7 @@ def check(
     expanded_modules = process_module_list(modules)
 
     # Read and process input
-    patch_content = read_input_content(infile)
+    patch_content = read_input_content(input_source)
     processed_files = process_input_to_files(patch_content)
 
     # Load and filter plugins
