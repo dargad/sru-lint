@@ -102,7 +102,8 @@ class UpdateMaintainer(Plugin):
                 if header:
                     headers.append(header)
             except Exception as e:
-                self.logger.error(f"Error parsing line in {processed_file.path}: {e}")
+                # most likely just not a changelog header line
+                self.logger.debug(f"Error parsing line in {processed_file.path}: {e}")
 
         self.logger.debug(f"Found headers: {headers}")
         return headers
