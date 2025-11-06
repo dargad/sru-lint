@@ -47,10 +47,9 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from urllib.parse import urlparse
-from typing import List, Tuple
 
-from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode
+from sru_lint.common.feedback import FeedbackItem, Severity, SourceLine, SourceSpan
 
 
 def _strip_comment_prefix(line: str) -> str:
@@ -110,7 +109,7 @@ def _is_plausible_url(value: str) -> bool:
 
 def check_dep3_compliance(
     patch_text: str, file_path: str = "patch"
-) -> Tuple[bool, List[FeedbackItem]]:
+) -> tuple[bool, list[FeedbackItem]]:
     """Check whether a patch complies with the Debian DEP-3 Tagging Guidelines.
 
     Parameters
@@ -161,8 +160,8 @@ def check_dep3_compliance(
     # relevant meta-information.  We stop scanning
     # once this delimiter is encountered.  Diff headers beginning with "---"
     # followed by a space or filename are not considered terminators.
-    header_lines: List[str] = []
-    line_numbers: List[int] = []  # Track line numbers for feedback
+    header_lines: list[str] = []
+    line_numbers: list[int] = []  # Track line numbers for feedback
     for line_num, line in enumerate(lines, 1):
         # Trim right-hand whitespace to recognise delimiter accurately
         stripped = line.strip()
@@ -186,8 +185,8 @@ def check_dep3_compliance(
     # We treat both "Description" and "Subject" as aliases.  Likewise,
     # "Author" and "From" are aliases.  Field names are case-insensitive.
     # We also record optional fields to perform minimal validation.
-    date_fields: List[Tuple[str, int]] = []  # (value, line_number)
-    forwarded_fields: List[Tuple[str, int]] = []  # (value, line_number)
+    date_fields: list[tuple[str, int]] = []  # (value, line_number)
+    forwarded_fields: list[tuple[str, int]] = []  # (value, line_number)
 
     # Track the current field in order to associate continuation lines with it.
     current_field: str | None = None
@@ -281,7 +280,7 @@ def check_dep3_compliance(
             forwarded_invalid_line = line_num
             break
 
-    feedback_items: List[FeedbackItem] = []
+    feedback_items: list[FeedbackItem] = []
 
     # Helper function to create a SourceSpan for DEP-3 feedback
     def create_dep3_source_span(line_number: int) -> SourceSpan:

@@ -3,7 +3,7 @@ Utility for converting unidiff patches to ProcessedFile objects.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+
 import unidiff
 
 from sru_lint.common.feedback import SourceSpan, create_source_span_from_patch
@@ -16,10 +16,10 @@ class ProcessedFile:
 
     path: str
     source_span: SourceSpan
-    original_patch: Optional[object] = None  # Keep reference to original if needed
+    original_patch: object | None = None  # Keep reference to original if needed
 
 
-def process_patchset(patchset: unidiff.PatchSet) -> List[ProcessedFile]:
+def process_patchset(patchset: unidiff.PatchSet) -> list[ProcessedFile]:
     """
     Convert a unidiff PatchSet to a list of ProcessedFile objects.
 
@@ -60,7 +60,7 @@ def process_patchset(patchset: unidiff.PatchSet) -> List[ProcessedFile]:
     return processed_files
 
 
-def process_patch_content(patch_content: str) -> List[ProcessedFile]:
+def process_patch_content(patch_content: str) -> list[ProcessedFile]:
     """
     Convert patch content string to a list of ProcessedFile objects.
 

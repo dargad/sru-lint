@@ -1,5 +1,6 @@
 # pip install rich
-from typing import Dict, List, Iterable, Optional, Union, Tuple
+from collections.abc import Iterable
+
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
@@ -11,7 +12,7 @@ console = Console()
 POINTER_CHAR = "^"
 
 
-def _get_severity_style(severity: Optional[Severity] = None) -> str:
+def _get_severity_style(severity: Severity | None = None) -> str:
     """
     Get the appropriate style (color and weight) based on severity level.
 
@@ -97,10 +98,10 @@ def render_snippet(
     language: str = "python",
     start_line: int = 1,
     start_col: int = 1,
-    highlight_lines: Optional[Iterable[int]] = None,
-    severity: Optional[Severity] = None,
-    annotations: Optional[Dict[int, Union[List[str], List[Tuple[str, int]]]]] = None,
-    title: Optional[str] = None,
+    highlight_lines: Iterable[int] | None = None,
+    severity: Severity | None = None,
+    annotations: dict[int, list[str] | list[tuple[str, int]]] | None = None,
+    title: str | None = None,
 ):
     """
     Render a code snippet with a gutter, line numbers, optional highlighted lines,

@@ -1,21 +1,21 @@
-from typing import Optional, List, Tuple
-import logging
 import json
-import time
-import urllib.request
-import urllib.parse
+import logging
 import sys
+import time
+import urllib.parse
+import urllib.request
+from enum import Enum
+
+import typer
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from sru_lint.common.errors import ErrorEnumEncoder
+from sru_lint.common.feedback import FeedbackItem
+from sru_lint.common.logging import get_logger, setup_logger
+from sru_lint.common.patch_processor import process_patch_content
 from sru_lint.common.ui.snippet import render_snippet
 from sru_lint.plugin_manager import PluginManager
-from sru_lint.common.logging import setup_logger, get_logger
-from sru_lint.common.patch_processor import process_patch_content
-from sru_lint.common.feedback import FeedbackItem
-import typer
-from enum import Enum
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-from rich.console import Console
 
 
 # Format options enum
@@ -81,7 +81,7 @@ def feedback_to_dict(feedback_item):
     return result
 
 
-def process_module_list(modules: List[str]) -> List[str]:
+def process_module_list(modules: list[str]) -> list[str]:
     """Process comma-separated module names into a flat list."""
     logger = get_logger("cli")
 
@@ -136,7 +136,7 @@ def read_input_content(input_source: str) -> str:
         # Read from file path
         logger.debug(f"Reading patch from file: {input_source}")
         try:
-            with open(input_source, "r", encoding="utf-8") as file:
+            with open(input_source, encoding="utf-8") as file:
                 patch_content = file.read()
             logger.debug(f"Read {len(patch_content)} characters from file")
         except FileNotFoundError:
@@ -164,7 +164,7 @@ def process_input_to_files(patch_content: str):
     return processed_files
 
 
-def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
+def load_and_filter_plugins(modules: list[str], output_format: OutputFormat):
     """Load plugins and filter them based on specified modules."""
     logger = get_logger("cli")
 
@@ -195,7 +195,7 @@ def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
     return plugins
 
 
-def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[FeedbackItem]:
+def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[FeedbackItem]:
     """Run all plugins on the processed files and collect feedback."""
     logger = get_logger("cli")
 
@@ -256,7 +256,7 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
     return feedback
 
 
-def analyze_feedback(feedback: List[FeedbackItem]) -> Tuple[int, int, int]:
+def analyze_feedback(feedback: list[FeedbackItem]) -> tuple[int, int, int]:
     """Analyze feedback and count items by severity."""
     logger = get_logger("cli")
 
@@ -271,13 +271,13 @@ def analyze_feedback(feedback: List[FeedbackItem]) -> Tuple[int, int, int]:
     return error_count, warning_count, info_count
 
 
-def output_json_feedback(feedback: List[FeedbackItem]):
+def output_json_feedback(feedback: list[FeedbackItem]):
     """Output feedback in JSON format."""
     feedback_dicts = [feedback_to_dict(item) for item in feedback]
     typer.echo(json.dumps(feedback_dicts, indent=2, cls=ErrorEnumEncoder))
 
 
-def output_console_feedback(feedback: List[FeedbackItem]):
+def output_console_feedback(feedback: list[FeedbackItem]):
     """Output feedback in console format with snippets."""
     if not global_options.quiet:
         if feedback:
@@ -317,7 +317,7 @@ def output_console_feedback(feedback: List[FeedbackItem]):
             typer.secho("✅ No issues found", fg=typer.colors.GREEN)
 
 
-def output_feedback(feedback: List[FeedbackItem], output_format: OutputFormat):
+def output_feedback(feedback: list[FeedbackItem], output_format: OutputFormat):
     """Output feedback in the specified format."""
     if output_format == OutputFormat.json:
         output_json_feedback(feedback)
@@ -383,7 +383,7 @@ def check(
     input_source: str = typer.Argument(
         "-", metavar="INPUT", help="File path, URL, or '-' for stdin"
     ),
-    modules: Optional[list[str]] = typer.Option(
+    modules: list[str] | None = typer.Option(
         ["all"],
         "--modules",
         "-m",
@@ -480,7 +480,7 @@ def inspect():
 @app.command("help")
 def help_cmd(
     ctx: typer.Context,
-    command: Optional[list[str]] = typer.Argument(
+    command: list[str] | None = typer.Argument(
         None,
         help="Show help for this app or a subcommand path, e.g. `help greet` or `help tools sub`.",
     ),

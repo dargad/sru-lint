@@ -1,14 +1,11 @@
+from debian import changelog
+from debian.debian_support import Version
+
 from sru_lint.common.debian.changelog import DebianChangelogHeader, parse_header
 from sru_lint.common.doc_links import DocLinks
 from sru_lint.common.errors import ErrorCode
-from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, create_source_span
-from sru_lint.common.parse import find_offset
-from sru_lint.common.ui.snippet import render_snippet
+from sru_lint.common.feedback import FeedbackItem, Severity
 from sru_lint.plugins.plugin_base import Plugin
-from sru_lint.common.patches import combine_added_lines
-
-from debian import changelog
-from debian.debian_support import Version
 
 
 class ChangelogEntry(Plugin):
@@ -71,7 +68,7 @@ class ChangelogEntry(Plugin):
                 header = parse_header(line.content)
                 if header:
                     headers.append(header)
-            except Exception as e:
+            except Exception:
                 continue
         if len(headers) > 1:
             self.check_version_order(processed_file, headers)

@@ -1,7 +1,6 @@
-from abc import ABC, abstractmethod
-import re
-from typing import List, Set, Optional
 import fnmatch
+import re
+from abc import ABC, abstractmethod
 
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
@@ -24,8 +23,8 @@ class Plugin(ABC):
         """Initialize the plugin with its file patterns and Launchpad helper."""
         from sru_lint.common.launchpad_helper import get_launchpad_helper
 
-        self._file_patterns: Set[str] = set()
-        self.feedback: List[FeedbackItem] = []  # List to collect feedback items
+        self._file_patterns: set[str] = set()
+        self.feedback: list[FeedbackItem] = []  # List to collect feedback items
         self.lp_helper = get_launchpad_helper()
         self.logger = get_logger(f"plugins.{self.__symbolic_name__}")
         self.register_file_patterns()
@@ -74,7 +73,7 @@ class Plugin(ABC):
         self._file_patterns.add(pattern)
         self.logger.debug(f"Added file pattern: {pattern}")
 
-    def add_file_patterns(self, patterns: List[str]):
+    def add_file_patterns(self, patterns: list[str]):
         """
         Add multiple file patterns to check.
 
@@ -101,7 +100,7 @@ class Plugin(ABC):
         self.logger.debug(f"File {filepath} does not match any patterns: {self._file_patterns}")
         return False
 
-    def process(self, processed_files: List[ProcessedFile]) -> List[FeedbackItem]:
+    def process(self, processed_files: list[ProcessedFile]) -> list[FeedbackItem]:
         """
         Process the given processed files and perform plugin-specific actions.
 
@@ -168,11 +167,11 @@ class Plugin(ABC):
         message: str,
         rule_id: ErrorCode,
         severity: Severity = Severity.ERROR,
-        source_span: Optional[SourceSpan] = None,
-        line_number: Optional[int] = None,
+        source_span: SourceSpan | None = None,
+        line_number: int | None = None,
         col_start: int = 1,
-        col_end: Optional[int] = None,
-        doc_url: Optional[str] = None,
+        col_end: int | None = None,
+        doc_url: str | None = None,
     ) -> FeedbackItem:
         """
         Create a FeedbackItem with proper span information.
@@ -242,7 +241,7 @@ class Plugin(ABC):
         source_span: SourceSpan,
         target_line_content: str,
         severity: Severity = Severity.ERROR,
-        doc_url: Optional[str] = None,
+        doc_url: str | None = None,
     ) -> FeedbackItem:
         """
         Create feedback for a specific line content found in the source span.

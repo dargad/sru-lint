@@ -1,9 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-from typing import Optional, List, Dict
+
 import json
 import uuid
+from dataclasses import asdict, dataclass, field
+from enum import Enum
 
 from sru_lint.common.errors import ErrorCode
 
@@ -22,10 +22,10 @@ class FixIt:
     """
 
     description: str
-    span: Optional[SourceSpan] = None  # where the fix applies (defaults to issue span)
-    replacement: Optional[str] = None  # text replacement to apply to span
+    span: SourceSpan | None = None  # where the fix applies (defaults to issue span)
+    replacement: str | None = None  # text replacement to apply to span
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         d = asdict(self)
         if self.span:
             d["span"] = self.span.to_dict()
@@ -42,15 +42,15 @@ class FeedbackItem:
     span: SourceSpan  # where it happened
     rule_id: ErrorCode  # stable identifier, e.g., "FMT001"
     severity: Severity = Severity.ERROR
-    doc_url: Optional[str] = None  # link to more info (optional)
-    hint: Optional[str] = None  # short nudge for quick fixes (optional)
-    code_sample: Optional[str] = None  # small extracted snippet to show in UIs
-    tags: List[str] = field(default_factory=list)
-    fixits: List[FixIt] = field(default_factory=list)
-    meta: Dict[str, str] = field(default_factory=dict)  # freeform extras (e.g., parser context)
+    doc_url: str | None = None  # link to more info (optional)
+    hint: str | None = None  # short nudge for quick fixes (optional)
+    code_sample: str | None = None  # small extracted snippet to show in UIs
+    tags: list[str] = field(default_factory=list)
+    fixits: list[FixIt] = field(default_factory=list)
+    meta: dict[str, str] = field(default_factory=dict)  # freeform extras (e.g., parser context)
     id: str = field(default_factory=lambda: str(uuid.uuid4()))  # unique per finding
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "id": self.id,
             "rule_id": self.rule_id,
@@ -79,13 +79,13 @@ class FeedbackReport:
 
     tool_name: str
     tool_version: str
-    items: List[FeedbackItem] = field(default_factory=list)
-    summary: Dict[str, int] = field(default_factory=dict)
+    items: list[FeedbackItem] = field(default_factory=list)
+    summary: dict[str, int] = field(default_factory=dict)
 
     def add(self, item: FeedbackItem) -> None:
         self.items.append(item)
 
-    def to_json(self, *, indent: Optional[int] = None) -> str:
+    def to_json(self, *, indent: int | None = None) -> str:
         payload = {
             "tool_name": self.tool_name,
             "tool_version": self.tool_version,
@@ -123,7 +123,6 @@ def create_source_span(
 
 
 from dataclasses import dataclass
-from typing import List, Optional
 from enum import Enum
 
 
@@ -138,7 +137,7 @@ class SourceLine:
     """Represents a single line in the source with context information."""
 
     content: str
-    line_number: Optional[int]  # Target line number from patch
+    line_number: int | None  # Target line number from patch
     is_added: bool = False
     is_removed: bool = False
     is_context: bool = False
@@ -157,8 +156,8 @@ class SourceSpan:
     end_offset: int = 0
 
     # Content information from patch
-    content: List[SourceLine] = None  # Only added lines
-    content_with_context: List[SourceLine] = None  # Added lines + context
+    content: list[SourceLine] = None  # Only added lines
+    content_with_context: list[SourceLine] = None  # Added lines + context
 
     def __post_init__(self):
         """Initialize content lists if not provided."""
@@ -168,16 +167,16 @@ class SourceSpan:
             self.content_with_context = []
 
     @property
-    def lines_added(self) -> List[SourceLine]:
+    def lines_added(self) -> list[SourceLine]:
         """Get only the added lines from content_with_context."""
         return [line for line in self.content_with_context if line.is_added]
 
     @property
-    def lines_with_context(self) -> List[SourceLine]:
+    def lines_with_context(self) -> list[SourceLine]:
         """Get only the context lines from content_with_context."""
         return [line for line in self.content_with_context if line.is_added or line.is_context]
 
-    def get_line_content(self, line_number: int) -> Optional[str]:
+    def get_line_content(self, line_number: int) -> str | None:
         """Get content of a specific line number."""
         for line in self.content_with_context:
             if line.line_number == line_number:

@@ -2,8 +2,9 @@ import importlib
 import inspect
 import pkgutil
 import sys
-from sru_lint.plugins.plugin_base import Plugin
+
 import sru_lint.plugins  # import the plugins module or package
+from sru_lint.plugins.plugin_base import Plugin
 
 
 class PluginManager:

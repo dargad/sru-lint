@@ -5,7 +5,6 @@ Provides a centralized logger that can be used across all modules.
 
 import logging
 import sys
-from typing import Optional
 
 
 class ColoredFormatter(logging.Formatter):
@@ -66,7 +65,7 @@ def setup_logger(name: str = "sru-lint", level: int = logging.INFO) -> logging.L
     return logger
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     """
     Get a logger instance.
 

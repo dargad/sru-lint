@@ -3,9 +3,10 @@ Helper module for Launchpad integration.
 Provides cached Launchpad connection and utility functions.
 """
 
-from launchpadlib.launchpad import Launchpad
-from typing import Optional, List, Set
 import re
+from typing import Optional
+
+from launchpadlib.launchpad import Launchpad
 
 from sru_lint.common.logging import get_logger
 
@@ -14,8 +15,8 @@ class LaunchpadHelper:
     """Singleton helper class for Launchpad interactions."""
 
     _instance: Optional["LaunchpadHelper"] = None
-    _launchpad: Optional[Launchpad] = None
-    _valid_distributions: Optional[Set[str]] = None
+    _launchpad: Launchpad | None = None
+    _valid_distributions: set[str] | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -105,7 +106,7 @@ class LaunchpadHelper:
         self.logger.debug(f"Bug #{bug_number} is NOT targeted at {package} in {distribution}")
         return False
 
-    def get_bug_tasks(self, bug_number: int) -> List:
+    def get_bug_tasks(self, bug_number: int) -> list:
         """
         Get all bug tasks for a bug.
 
@@ -142,7 +143,7 @@ class LaunchpadHelper:
             self.logger.error(f"Error fetching series '{series_name}': {e}")
             return None
 
-    def get_valid_distributions(self, include_pockets: bool = True) -> Set[str]:
+    def get_valid_distributions(self, include_pockets: bool = True) -> set[str]:
         """
         Get a set of valid Ubuntu distribution names.
 
@@ -232,7 +233,7 @@ class LaunchpadHelper:
         return is_valid
 
     @staticmethod
-    def extract_lp_bugs(text: str) -> List[int]:
+    def extract_lp_bugs(text: str) -> list[int]:
         """
         Extract Launchpad bug numbers from text.
 

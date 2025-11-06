@@ -1,10 +1,11 @@
+from debian import changelog
+
+from sru_lint.common.errors import ErrorCode
+from sru_lint.common.feedback import Severity, SourceLine, SourceSpan
 from sru_lint.common.launchpad_helper import LaunchpadHelper
+from sru_lint.common.logging import get_logger
 from sru_lint.common.parse import UNRELEASED_DISTRIBUTION, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
-from sru_lint.common.feedback import Severity, SourceSpan, SourceLine
-from sru_lint.common.errors import ErrorCode
-from sru_lint.common.logging import get_logger
-from debian import changelog
 
 
 class PublishingHistory(Plugin):

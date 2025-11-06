@@ -1,11 +1,11 @@
+from debian.deb822 import Deb822
+from debian.debian_support import Version
+
 from sru_lint.common.debian.changelog import parse_header
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import Severity
 from sru_lint.common.logging import get_logger
 from sru_lint.plugins.plugin_base import Plugin
-
-from debian.deb822 import Deb822
-from debian.debian_support import Version
 
 
 class UpdateMaintainer(Plugin):

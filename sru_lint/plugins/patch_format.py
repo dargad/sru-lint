@@ -1,8 +1,8 @@
 from sru_lint.common.debian.dep3 import check_dep3_compliance
-from sru_lint.plugins.plugin_base import Plugin
-from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.common.errors import ErrorCode
+from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan
 from sru_lint.common.logging import get_logger
+from sru_lint.plugins.plugin_base import Plugin
 
 
 class PatchFormat(Plugin):
