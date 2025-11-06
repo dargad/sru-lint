@@ -8,6 +8,7 @@ from rich.text import Text
 from sru_lint.common.feedback import Severity
 
 console = Console()
+POINTER_CHAR = '^'
 
 def _get_severity_style(severity: Optional[Severity] = None) -> str:
     """
@@ -29,29 +30,30 @@ def _get_severity_style(severity: Optional[Severity] = None) -> str:
     else:
         return "bold red"  # Default fallback
 
-def _create_column_pointer(line: str, col: int) -> str:
+def _create_column_pointer(line: str, col_start: int, col_end: int) -> str:
     """
     Create a pointer line that shows an up-arrow at the specified column.
     
     Args:
         line: The source line to point at
-        col: Column position (1-based) to point to
-        
+        col_start: Starting column position (1-based) to point to
+        col_end: Ending column position (1-based) to point to
+
     Returns:
         String with spaces and an up-arrow at the correct position
     """
-    if col < 1:
-        col = 1
+    if col_start < 1:
+        col_start = 1
     
     # Convert 1-based column to 0-based index
-    col_index = col - 1
+    col_index = col_start - 1
     
     # Handle tabs by expanding them to match visual alignment
     visual_line = line.expandtabs(4)  # Expand tabs to 4 spaces for consistent alignment
     
     # Ensure we don't go beyond the line length
     pointer_length = min(col_index, len(visual_line))
-    
+
     # Create the pointer line with spaces up to the column, then an arrow
     pointer_chars = []
     for i in range(pointer_length):
@@ -59,8 +61,8 @@ def _create_column_pointer(line: str, col: int) -> str:
             pointer_chars.append('    ')  # Match tab expansion
         else:
             pointer_chars.append(' ')
-    
-    pointer_line = ''.join(pointer_chars) + '↑'
+
+    pointer_line = ''.join(pointer_chars) + POINTER_CHAR*(max(1, col_end - col_start))
     return pointer_line
 
 
@@ -136,14 +138,14 @@ def render_snippet(
             for annotation in annos:
                 # Handle both string and tuple formats
                 if isinstance(annotation, tuple):
-                    msg, col = annotation
+                    msg, col_start, col_end = annotation
                     # Create pointer line with arrow at specified column
-                    pointer_line = _create_column_pointer(raw, col)
+                    pointer_line = _create_column_pointer(raw, col_start, col_end)
                     pointer_text = Text(pointer_line, style="dim cyan")
                     table.add_row("│", " " * ln_width, pointer_text)
                     
                     # Create centered message below the arrow
-                    centered_message = _create_centered_message(msg, col, len(raw))
+                    centered_message = _create_centered_message(msg, col_start, len(raw))
                     msg_text = Text(centered_message, style=_get_severity_style(severity))
                     table.add_row("│", " " * ln_width, msg_text)
                 else:
