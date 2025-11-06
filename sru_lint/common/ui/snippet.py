@@ -141,7 +141,7 @@ def render_snippet(
                     msg, col_start, col_end = annotation
                     # Create pointer line with arrow at specified column
                     pointer_line = _create_column_pointer(raw, col_start, col_end)
-                    pointer_text = Text(pointer_line, style="dim cyan")
+                    pointer_text = Text(pointer_line, style="cyan")
                     table.add_row("│", " " * ln_width, pointer_text)
                     
                     # Create centered message below the arrow
