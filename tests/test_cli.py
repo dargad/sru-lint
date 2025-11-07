@@ -506,9 +506,6 @@ class TestCLI(unittest.TestCase):
         
         result = self.runner.invoke(app, ['check', '-'], input='patch content')
 
-        print(result.stdout)
-        print(result.stderr)
-
         self.assertEqual(result.exit_code, 1)  # Should exit with error due to error feedback
         self.assertIn('Error message', result.stdout)
         self.assertIn('Warning message', result.stdout)

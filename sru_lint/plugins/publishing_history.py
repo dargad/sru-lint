@@ -40,15 +40,15 @@ class PublishingHistory(Plugin):
             # Parse the changelog
             cl = changelog.Changelog(changelog_content)
             
-            # Check each version in the changelog
-            for entry in cl:
-                package_name = entry.package
-                version_to_check = entry.version
-                distribution = entry.distributions
+            # check only first entry in changelog
+            entry = cl[0]
+            package_name = entry.package
+            version_to_check = entry.version
+            distribution = entry.distributions
 
-                if distribution != UNRELEASED_DISTRIBUTION:
-                    self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
-                    self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
+            if distribution != UNRELEASED_DISTRIBUTION:
+                self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
+                self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
 
         except Exception as e:
             self.logger.error(f"Error parsing changelog {processed_file.path}: {e}")
@@ -83,13 +83,14 @@ class PublishingHistory(Plugin):
             # Get published sources from Launchpad
             publications = self.lp_helper.archive.getPublishedSources(
                 source_name=package_name,
-                exact_match=True
+                exact_match=True,
+                version=version_to_check
             )
 
             found_publications = []
             newer_publications = []
-            
-            # Check each publication
+
+            # Check each publication - should only be exact version matches now
             for pub in publications:
                 pub_version = pub.source_package_version
                 pub_distro = pub.distro_series.name
@@ -97,12 +98,32 @@ class PublishingHistory(Plugin):
                 
                 distro = parse_distributions_field(distribution)
                 # Check if this publication is for the same distribution
-                if pub_distro == (distro[0] if distro and len(distro) > 0 else distribution):  # Handle cases like 'jammy-proposed' -> 'jammy'
-                    if pub_version == version_to_check:
-                        found_publications.append(publication_info)
-                        self.logger.info(f"✅ Found {package_name} {version_to_check} in {publication_info}")
-                    else:
-                        # Check if published version is newer than the one we're checking
+                if pub_distro == (
+                    distro[0] if distro and len(distro) > 0 else distribution
+                ):  # Handle cases like 'jammy-proposed' -> 'jammy'
+                    # Since we filtered by version, this should be an exact match
+                    found_publications.append(publication_info)
+                    self.logger.info(
+                        f"✅ Found {package_name} {version_to_check} in {publication_info}"
+                    )
+
+            # Separate query for newer versions to check if there are newer publications
+            newer_publications_query = self.lp_helper.archive.getPublishedSources(
+                source_name=package_name, exact_match=True
+            )
+
+            for pub in newer_publications_query:
+                pub_version = pub.source_package_version
+                pub_distro = pub.distro_series.name
+                publication_info = f"{pub_distro}/{pub.pocket}/{pub.status}"
+
+                distro = parse_distributions_field(distribution)
+                # Check if this publication is for the same distribution
+                if pub_distro == (
+                    distro[0] if distro and len(distro) > 0 else distribution
+                ):
+                    # Check if published version is newer than the one we're checking
+                    if pub_version != version_to_check:  # Skip the exact match we already found
                         try:
                             from debian.debian_support import Version
                             if Version(pub_version) > Version(version_to_check):

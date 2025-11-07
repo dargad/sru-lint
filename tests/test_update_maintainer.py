@@ -337,8 +337,6 @@ class TestUpdateMaintainer(unittest.TestCase):
         with patch.object(self.plugin, 'create_line_feedback') as mock_create_line_feedback:
             self.plugin.post_process()
 
-            print( self.plugin.feedback)
-            
             mock_create_line_feedback.assert_called_once_with(
                 message="Version number suggests Ubuntu changes, but Maintainer: does not have Ubuntu address.",
                 rule_id=ErrorCode.CONTROL_MAINTAINER_NOT_UPDATED,
