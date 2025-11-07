@@ -393,8 +393,6 @@ class TestChangelogEntry(unittest.TestCase):
         # Check that we have the expected types of feedback
         rule_ids = [f.rule_id for f in self.plugin.feedback]
         
-        print(self.plugin.feedback)
-        
         # Should have at least one invalid distribution error
         self.assertIn(ErrorCode.CHANGELOG_INVALID_DISTRIBUTION, rule_ids)  # Invalid distribution
 
