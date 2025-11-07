@@ -33,7 +33,7 @@ class SRUTemplate(Plugin):
                 rule_id=ErrorCode.SRU_NO_BUGS_REFERENCED,
                 source_span=processed_file.source_span,
                 severity=Severity.INFO,
-                doc_url=DocLinks.PATCHING_MAKE_CHANGES
+                doc_url=DocLinks.PATCHING_MAKE_CHANGES,
             )
         else:
             self.logger.debug(f"Found Launchpad bugs in {processed_file.path}: {lpbugs}")
@@ -48,7 +48,7 @@ class SRUTemplate(Plugin):
                             rule_id=ErrorCode.SRU_TEMPLATE_MISSING,
                             source_span=processed_file.source_span,
                             target_line_content=f"LP: #{bug}",
-                            doc_url=DocLinks.SRU_TEMPLATE_FORMAT
+                            doc_url=DocLinks.SRU_TEMPLATE_FORMAT,
                         )
                 except Exception as e:
                     self.logger.error(f"Error checking SRU template for bug LP: #{bug}: {e}")
@@ -57,5 +57,5 @@ class SRUTemplate(Plugin):
                         rule_id=ErrorCode.SRU_LP_API_ERROR,
                         source_span=processed_file.source_span,
                         target_line_content=f"LP: #{bug}",
-                        severity=Severity.WARNING
+                        severity=Severity.WARNING,
                     )

@@ -19,7 +19,7 @@ class DummyPlugin(Plugin):
                     message="TODO comment found in added line",
                     rule_id="DUMMY001",
                     source_span=processed_file.source_span,
-                    target_line_content=line.content
+                    target_line_content=line.content,
                 )
 
             if line.is_added and "FIXME" in line.content:
@@ -27,7 +27,7 @@ class DummyPlugin(Plugin):
                     message="FIXME comment found in added line",
                     rule_id="DUMMY002",
                     source_span=processed_file.source_span,
-                    target_line_content=line.content
+                    target_line_content=line.content,
                 )
 
     def process(self, processed_files):

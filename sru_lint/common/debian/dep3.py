@@ -47,10 +47,9 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from urllib.parse import urlparse
-from typing import List, Tuple
 
-from sru_lint.common.feedback import FeedbackItem, Severity, SourceSpan, SourceLine
 from sru_lint.common.errors import ErrorCode
+from sru_lint.common.feedback import FeedbackItem, Severity, SourceLine, SourceSpan
 
 
 def _strip_comment_prefix(line: str) -> str:
@@ -74,11 +73,11 @@ def _strip_comment_prefix(line: str) -> str:
     """
     stripped = line.lstrip()
     # Only strip a single '#' and an optional following space
-    if stripped.startswith('#'):
+    if stripped.startswith("#"):
         # Remove the first '#'
         stripped = stripped[1:]
         # Remove one leading space if present
-        if stripped.startswith(' '):
+        if stripped.startswith(" "):
             stripped = stripped[1:]
         return stripped
     return line
@@ -87,7 +86,7 @@ def _strip_comment_prefix(line: str) -> str:
 def _is_valid_date(value: str) -> bool:
     """Return True if *value* is a valid ISO date (YYYY-MM-DD)."""
     try:
-        datetime.strptime(value.strip(), '%Y-%m-%d')
+        datetime.strptime(value.strip(), "%Y-%m-%d")
         return True
     except Exception:
         return False
@@ -108,7 +107,9 @@ def _is_plausible_url(value: str) -> bool:
     return bool(parsed.scheme) and bool(parsed.netloc)
 
 
-def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bool, List[FeedbackItem]]:
+def check_dep3_compliance(
+    patch_text: str, file_path: str = "patch"
+) -> tuple[bool, list[FeedbackItem]]:
     """Check whether a patch complies with the Debian DEP-3 Tagging Guidelines.
 
     Parameters
@@ -152,20 +153,20 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
     True
     """
     # Normalise line endings and split into lines
-    lines = patch_text.replace('\r\n', '\n').split('\n')
+    lines = patch_text.replace("\r\n", "\n").split("\n")
 
     # Determine where the DEP-3 header terminates.  According to the
     # specification, a line containing exactly three dashes marks the end of
     # relevant meta-information.  We stop scanning
     # once this delimiter is encountered.  Diff headers beginning with "---"
     # followed by a space or filename are not considered terminators.
-    header_lines: List[str] = []
-    line_numbers: List[int] = []  # Track line numbers for feedback
+    header_lines: list[str] = []
+    line_numbers: list[int] = []  # Track line numbers for feedback
     for line_num, line in enumerate(lines, 1):
         # Trim right-hand whitespace to recognise delimiter accurately
         stripped = line.strip()
         # Use a plain '---' delimiter (optionally padded with whitespace)
-        if stripped == '---':
+        if stripped == "---":
             break
         header_lines.append(line)
         line_numbers.append(line_num)
@@ -184,8 +185,8 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
     # We treat both "Description" and "Subject" as aliases.  Likewise,
     # "Author" and "From" are aliases.  Field names are case-insensitive.
     # We also record optional fields to perform minimal validation.
-    date_fields: List[Tuple[str, int]] = []  # (value, line_number)
-    forwarded_fields: List[Tuple[str, int]] = []  # (value, line_number)
+    date_fields: list[tuple[str, int]] = []  # (value, line_number)
+    forwarded_fields: list[tuple[str, int]] = []  # (value, line_number)
 
     # Track the current field in order to associate continuation lines with it.
     current_field: str | None = None
@@ -203,7 +204,7 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
         line = _strip_comment_prefix(raw_line)
         # Strip trailing carriage returns and newlines
         # Note: Do not strip leading spaces since they indicate continuation
-        line_nostrip = line.rstrip('\r\n')
+        line_nostrip = line.rstrip("\r\n")
 
         # Empty line resets the header parsing but does not terminate
         # scanning.  According to the DEP-3 structure, a new header (the
@@ -216,28 +217,28 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
             continue
 
         # Match a field definition: <name>:<value>
-        m = re.match(r'^(?P<name>[\w.-]+)\s*:\s*(?P<value>.*)$', line_nostrip)
+        m = re.match(r"^(?P<name>[\w.-]+)\s*:\s*(?P<value>.*)$", line_nostrip)
         if m:
             # Found a new field
-            current_field = m.group('name').strip().lower()
+            current_field = m.group("name").strip().lower()
             current_field_line = line_num
-            value = m.group('value')
+            value = m.group("value")
             field_first_line_seen = True
             field_has_content = bool(value.strip())
             # Dispatch based on field name
-            if current_field in ('description', 'subject'):
+            if current_field in ("description", "subject"):
                 description_found = True
                 description_line = line_num
                 if field_has_content:
                     description_non_empty = True
-            elif current_field == 'origin':
+            elif current_field == "origin":
                 # Record even if empty; emptiness is handled later
                 origin_found = True
-            elif current_field in ('author', 'from'):
+            elif current_field in ("author", "from"):
                 author_found = True
-            elif current_field == 'last-update':
+            elif current_field == "last-update":
                 date_fields.append((value.strip(), line_num))
-            elif current_field == 'forwarded':
+            elif current_field == "forwarded":
                 forwarded_fields.append((value.strip(), line_num))
             # Reset for continuation detection on next lines
             continue
@@ -245,9 +246,9 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
         # Continuation lines begin with a space or tab and extend the value
         # of the previous field.  Only the first line of the value is used
         # to assess whether Description/Subject contains non-empty content.
-        if current_field and line_nostrip.startswith((' ', '\t')):
+        if current_field and line_nostrip.startswith((" ", "\t")):
             # Only update description_non_empty if we haven't seen content yet
-            if current_field in ('description', 'subject') and not field_has_content:
+            if current_field in ("description", "subject") and not field_has_content:
                 if line_nostrip.strip():
                     description_non_empty = True
                     field_has_content = True
@@ -274,22 +275,22 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
     # or if it looks like a URL.
     for fwd_value, line_num in forwarded_fields:
         v = fwd_value.strip().lower()
-        if v and v not in ('no', 'not-needed') and not _is_plausible_url(v):
+        if v and v not in ("no", "not-needed") and not _is_plausible_url(v):
             forwarded_invalid = True
             forwarded_invalid_line = line_num
             break
 
-    feedback_items: List[FeedbackItem] = []
-    
+    feedback_items: list[FeedbackItem] = []
+
     # Helper function to create a SourceSpan for DEP-3 feedback
     def create_dep3_source_span(line_number: int) -> SourceSpan:
         # Create a minimal SourceLine for the issue
         source_line = SourceLine(
             content="",  # We don't have the actual line content here
             line_number=line_number,
-            is_added=True
+            is_added=True,
         )
-        
+
         return SourceSpan(
             path=file_path,
             start_line=line_number,
@@ -297,59 +298,69 @@ def check_dep3_compliance(patch_text: str, file_path: str = "patch") -> Tuple[bo
             end_line=line_number,
             end_col=1,
             content=[source_line],
-            content_with_context=[source_line]
+            content_with_context=[source_line],
         )
-    
+
     # Check the mandatory Description/Subject field
     if not description_found:
         source_span = create_dep3_source_span(1)
-        feedback_items.append(FeedbackItem(
-            message='Missing required Description/Subject field',
-            rule_id=ErrorCode.PATCH_DEP3_MISSING_DESCRIPTION,
-            severity=Severity.ERROR,
-            span=source_span
-        ))
+        feedback_items.append(
+            FeedbackItem(
+                message="Missing required Description/Subject field",
+                rule_id=ErrorCode.PATCH_DEP3_MISSING_DESCRIPTION,
+                severity=Severity.ERROR,
+                span=source_span,
+            )
+        )
     elif not description_non_empty:
         source_span = create_dep3_source_span(description_line)
-        feedback_items.append(FeedbackItem(
-            message='The Description/Subject field must contain a short description on its first line',
-            rule_id=ErrorCode.PATCH_DEP3_EMPTY_DESCRIPTION,
-            severity=Severity.ERROR,
-            span=source_span
-        ))
+        feedback_items.append(
+            FeedbackItem(
+                message="The Description/Subject field must contain a short description on its first line",
+                rule_id=ErrorCode.PATCH_DEP3_EMPTY_DESCRIPTION,
+                severity=Severity.ERROR,
+                span=source_span,
+            )
+        )
 
     # Check that either Origin or Author/From is present
     if not (origin_found or author_found):
         source_span = create_dep3_source_span(1)
-        feedback_items.append(FeedbackItem(
-            message='Either an Origin field or an Author/From field must be provided',
-            rule_id=ErrorCode.PATCH_DEP3_MISSING_ORIGIN_AUTHOR,
-            severity=Severity.ERROR,
-            span=source_span
-        ))
+        feedback_items.append(
+            FeedbackItem(
+                message="Either an Origin field or an Author/From field must be provided",
+                rule_id=ErrorCode.PATCH_DEP3_MISSING_ORIGIN_AUTHOR,
+                severity=Severity.ERROR,
+                span=source_span,
+            )
+        )
 
     # Report optional field issues
     if date_invalid:
         source_span = create_dep3_source_span(date_invalid_line)
-        feedback_items.append(FeedbackItem(
-            message='Last-Update field must be a valid ISO date (YYYY-MM-DD)',
-            rule_id=ErrorCode.PATCH_DEP3_INVALID_DATE,
-            severity=Severity.WARNING,
-            span=source_span
-        ))
-        
+        feedback_items.append(
+            FeedbackItem(
+                message="Last-Update field must be a valid ISO date (YYYY-MM-DD)",
+                rule_id=ErrorCode.PATCH_DEP3_INVALID_DATE,
+                severity=Severity.WARNING,
+                span=source_span,
+            )
+        )
+
     if forwarded_invalid:
         source_span = create_dep3_source_span(forwarded_invalid_line)
-        feedback_items.append(FeedbackItem(
-            message='Forwarded field should be either "no", "not-needed" or a valid URL',
-            rule_id=ErrorCode.PATCH_DEP3_INVALID_FORWARDED,
-            severity=Severity.WARNING,
-            span=source_span
-        ))
+        feedback_items.append(
+            FeedbackItem(
+                message='Forwarded field should be either "no", "not-needed" or a valid URL',
+                rule_id=ErrorCode.PATCH_DEP3_INVALID_FORWARDED,
+                severity=Severity.WARNING,
+                span=source_span,
+            )
+        )
 
     return (not feedback_items, feedback_items)
 
 
 __all__ = [
-    'check_dep3_compliance',
+    "check_dep3_compliance",
 ]
