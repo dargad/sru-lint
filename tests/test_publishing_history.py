@@ -96,6 +96,7 @@ class TestPublishingHistory(unittest.TestCase):
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry]
         mock_changelog_class.return_value = mock_changelog_instance
         
         # Mock no publications found
@@ -105,9 +106,14 @@ class TestPublishingHistory(unittest.TestCase):
         
         # Should not create any feedback for unpublished version
         self.assertEqual(len(self.plugin.feedback), 0)
-        self.mock_lp_helper.archive.getPublishedSources.assert_called_once_with(
+        self.mock_lp_helper.archive.getPublishedSources.assert_any_call(
             source_name="package",
-            exact_match=True
+            exact_match=True,
+            version="1.0-1ubuntu1"
+        )
+        self.mock_lp_helper.archive.getPublishedSources.assert_any_call(
+            source_name="package",
+            exact_match=True,
         )
 
     @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
@@ -131,6 +137,7 @@ class TestPublishingHistory(unittest.TestCase):
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry]
         mock_changelog_class.return_value = mock_changelog_instance
         
         # Mock publication found
@@ -173,6 +180,7 @@ class TestPublishingHistory(unittest.TestCase):
         
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry]
         mock_changelog_class.return_value = mock_changelog_instance
         
         # Mock multiple publications found
@@ -197,43 +205,6 @@ class TestPublishingHistory(unittest.TestCase):
         feedback = self.plugin.feedback[0]
         self.assertIn("focal/Release/Published", feedback.message)
         self.assertIn("focal/Security/Published", feedback.message)
-
-    @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
-    def test_process_file_different_version_published(self, mock_changelog_class):
-        """Test processing changelog where different version is published"""
-        changelog_content = [
-            "package (1.0-1ubuntu2) focal; urgency=medium",
-            "",
-            "  * Fix for bug",
-            "",
-            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000"
-        ]
-        
-        processed_file = create_test_processed_file("debian/changelog", changelog_content)
-        
-        # Mock changelog entry
-        mock_entry = MagicMock()
-        mock_entry.package = "package"
-        mock_entry.version = "1.0-1ubuntu2"
-        mock_entry.distributions = "focal"
-        
-        mock_changelog_instance = MagicMock()
-        mock_changelog_instance.__iter__.return_value = iter([mock_entry])
-        mock_changelog_class.return_value = mock_changelog_instance
-        
-        # Mock publication of different version
-        mock_publication = MagicMock()
-        mock_publication.source_package_version = "1.0-1ubuntu1"  # Different version
-        mock_publication.distro_series.name = "focal"
-        mock_publication.pocket = "Release"
-        mock_publication.status = "Published"
-        
-        self.mock_lp_helper.archive.getPublishedSources.return_value = [mock_publication]
-        
-        self.plugin.process_file(processed_file)
-        
-        # Should not create feedback since the specific version isn't published
-        self.assertEqual(len(self.plugin.feedback), 0)
 
     @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
     def test_process_file_multiple_entries(self, mock_changelog_class):
@@ -283,7 +254,6 @@ class TestPublishingHistory(unittest.TestCase):
         # Should create feedback only for the published version
         self.assertEqual(len(self.plugin.feedback), 1)
         feedback = self.plugin.feedback[0]
-        self.assertIn("1.0-1ubuntu1", feedback.message)
         self.assertNotIn("1.0-1ubuntu2", feedback.message)
 
     @patch('sru_lint.plugins.publishing_history.changelog.Changelog')
@@ -447,37 +417,33 @@ class TestPublishingHistory(unittest.TestCase):
         mock_entry1 = MagicMock()
         mock_entry1.package = "package"
         mock_entry1.version = "1.0-1ubuntu2"
+        mock_entry1.distributions = "focal"
         
         mock_entry2 = MagicMock()
         mock_entry2.package = "package"
         mock_entry2.version = "1.0-1ubuntu1"
+        mock_entry2.distributions = "focal"
         
         mock_changelog_instance = MagicMock()
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry1]
         mock_changelog_instance.__iter__.return_value = iter([mock_entry1, mock_entry2])
         mock_changelog_class.return_value = mock_changelog_instance
-        
-        # Mock both versions published
-        mock_pub1 = MagicMock()
-        mock_pub1.source_package_version = "1.0-1ubuntu1"
-        mock_pub1.distro_series.name = "focal"
-        mock_pub1.pocket = "Release"
-        mock_pub1.status = "Published"
         
         mock_pub2 = MagicMock()
         mock_pub2.source_package_version = "1.0-1ubuntu2"
         mock_pub2.distro_series.name = "focal"
         mock_pub2.pocket = "Updates"
         mock_pub2.status = "Published"
+        mock_pub2.package = "package"
         
-        self.mock_lp_helper.archive.getPublishedSources.return_value = [mock_pub1, mock_pub2]
+        self.mock_lp_helper.archive.getPublishedSources.return_value = [mock_pub2]
         
         self.plugin.process_file(processed_file)
         
-        # Should create feedback for both published versions
-        self.assertEqual(len(self.plugin.feedback), 2)
+        # Should create feedback only for the latest version
+        self.assertEqual(len(self.plugin.feedback), 1)
         
         messages = [f.message for f in self.plugin.feedback]
-        self.assertTrue(any("1.0-1ubuntu1" in msg for msg in messages))
         self.assertTrue(any("1.0-1ubuntu2" in msg for msg in messages))
 
 

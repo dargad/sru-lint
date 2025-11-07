@@ -40,15 +40,15 @@ class PublishingHistory(Plugin):
             # Parse the changelog
             cl = changelog.Changelog(changelog_content)
             
-            # Check each version in the changelog
-            for entry in cl:
-                package_name = entry.package
-                version_to_check = entry.version
-                distribution = entry.distributions
+            # check only first entry in changelog
+            entry = cl[0]
+            package_name = entry.package
+            version_to_check = entry.version
+            distribution = entry.distributions
 
-                if distribution != UNRELEASED_DISTRIBUTION:
-                    self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
-                    self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
+            if distribution != UNRELEASED_DISTRIBUTION:
+                self.logger.debug(f"Checking publishing history for {package_name} {version_to_check} in {distribution}")
+                self.check_version_publishing(processed_file, package_name, str(version_to_check), distribution)
 
         except Exception as e:
             self.logger.error(f"Error parsing changelog {processed_file.path}: {e}")
