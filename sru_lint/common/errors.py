@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 
+
 class ErrorCode(Enum):
     """Enumeration of error codes used in the SRU Lint tool."""
 
@@ -30,9 +31,10 @@ class ErrorCode(Enum):
 
     CONTROL_MAINTAINER_NOT_UPDATED = "CTRL001"
 
+
 class ErrorEnumEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles Enum serialization."""
-    
+
     def default(self, obj):
         if isinstance(obj, Enum):
             return obj.value

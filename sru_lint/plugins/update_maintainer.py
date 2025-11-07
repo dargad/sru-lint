@@ -33,7 +33,7 @@ class UpdateMaintainer(Plugin):
     def process_file(self, processed_file):
         """Process a debian/control or debian/changelog file to check maintainer info."""
         self.logger.info(f"Processing file for maintainer update: {processed_file.path}")
-        
+
         if processed_file.path.endswith("debian/changelog"):
             self.process_changelog(processed_file)
         elif processed_file.path.endswith("debian/control"):
@@ -42,7 +42,9 @@ class UpdateMaintainer(Plugin):
     def process_control(self, processed_file):
         """Process a debian/control file to check maintainer info."""
         self.logger.info(f"Checking debian/control for maintainer update: {processed_file.path}")
-        content = "\n".join([line.content for line in processed_file.source_span.lines_with_context])
+        content = "\n".join(
+            [line.content for line in processed_file.source_span.lines_with_context]
+        )
         control_data = Deb822(content)
         maintainer = original_maintainer = None
 
@@ -51,7 +53,9 @@ class UpdateMaintainer(Plugin):
             maintainer = control_data[self.MAINTAINER_FIELD]
 
         if self.is_ubuntu_maintainer(maintainer):
-            self.logger.info(f"Maintainer is set to Ubuntu address in {processed_file.path}: {maintainer}")
+            self.logger.info(
+                f"Maintainer is set to Ubuntu address in {processed_file.path}: {maintainer}"
+            )
             self.control_checked = True
 
     def is_ubuntu_maintainer(self, maintainer: str) -> bool:
@@ -81,7 +85,7 @@ class UpdateMaintainer(Plugin):
         if headers and len(headers) > 1:
             return self.is_ubuntu_version(headers[0]) and not self.is_ubuntu_version(headers[1])
         return False
-    
+
     def is_ubuntu_version(self, header):
         """Check if the version in the changelog header is an Ubuntu version."""
         try:
@@ -110,14 +114,18 @@ class UpdateMaintainer(Plugin):
 
     def post_process(self):
         """Perform any final checks or cleanup after all files have been processed."""
-        self.logger.info(f"Post-processing after maintainer update checks control_checked={self.control_checked}, expect_control={self.expect_control}")
+        self.logger.info(
+            f"Post-processing after maintainer update checks control_checked={self.control_checked}, expect_control={self.expect_control}"
+        )
         if not self.control_checked and self.expect_control:
-            self.logger.warning("debian/control file was expected but not found for maintainer update check.")
+            self.logger.warning(
+                "debian/control file was expected but not found for maintainer update check."
+            )
             self.create_line_feedback(
                 message="Version number suggests Ubuntu changes, but Maintainer: does not have Ubuntu address.",
                 rule_id=ErrorCode.CONTROL_MAINTAINER_NOT_UPDATED,
                 severity=Severity.WARNING,
                 doc_url="https://documentation.ubuntu.com/project/how-ubuntu-is-made/concepts/debian-directory/#the-control-file",
                 source_span=self.changelog.source_span,
-                target_line_content=self.version
-                )
+                target_line_content=self.version,
+            )

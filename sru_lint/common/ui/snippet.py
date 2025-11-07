@@ -8,15 +8,16 @@ from rich.text import Text
 from sru_lint.common.feedback import Severity
 
 console = Console()
-POINTER_CHAR = '^'
+POINTER_CHAR = "^"
+
 
 def _get_severity_style(severity: Optional[Severity] = None) -> str:
     """
     Get the appropriate style (color and weight) based on severity level.
-    
+
     Args:
         severity: Severity enum value (Severity.ERROR, Severity.WARNING, Severity.INFO, or None)
-        
+
     Returns:
         Rich style string combining color and weight
     """
@@ -30,10 +31,11 @@ def _get_severity_style(severity: Optional[Severity] = None) -> str:
     else:
         return "bold red"  # Default fallback
 
+
 def _create_column_pointer(line: str, col_start: int, col_end: int) -> str:
     """
     Create a pointer line that shows an up-arrow at the specified column.
-    
+
     Args:
         line: The source line to point at
         col_start: Starting column position (1-based) to point to
@@ -44,48 +46,48 @@ def _create_column_pointer(line: str, col_start: int, col_end: int) -> str:
     """
     if col_start < 1:
         col_start = 1
-    
+
     # Convert 1-based column to 0-based index
     col_index = col_start - 1
-    
+
     # Handle tabs by expanding them to match visual alignment
     visual_line = line.expandtabs(4)  # Expand tabs to 4 spaces for consistent alignment
-    
+
     # Ensure we don't go beyond the line length
     pointer_length = min(col_index, len(visual_line))
 
     # Create the pointer line with spaces up to the column, then an arrow
     pointer_chars = []
     for i in range(pointer_length):
-        if visual_line[i] == '\t':
-            pointer_chars.append('    ')  # Match tab expansion
+        if visual_line[i] == "\t":
+            pointer_chars.append("    ")  # Match tab expansion
         else:
-            pointer_chars.append(' ')
+            pointer_chars.append(" ")
 
-    pointer_line = ''.join(pointer_chars) + POINTER_CHAR*(max(1, col_end - col_start))
+    pointer_line = "".join(pointer_chars) + POINTER_CHAR * (max(1, col_end - col_start))
     return pointer_line
 
 
 def _create_centered_message(message: str, arrow_col: int, line_width: int) -> str:
     """
     Create a message line centered below the arrow position.
-    
+
     Args:
         message: The message to display
         arrow_col: Column position (1-based) where the arrow is
         line_width: Total width of the line for context
-        
+
     Returns:
         String with the message positioned to be centered under the arrow
     """
     message_len = len(message)
     arrow_pos = arrow_col - 1  # Convert to 0-based
-    
+
     # Calculate where to start the message so it's centered under the arrow
     message_start = max(0, arrow_pos - message_len // 2)
-    
+
     # Create padding and the message
-    padding = ' ' * message_start
+    padding = " " * message_start
     return padding + message
 
 
@@ -133,7 +135,9 @@ def render_snippet(
         table.add_row(pointer, f"{i}", code_cell)
 
         # Insert any annotations under this line (span across columns 2..3)
-        annos = annotations.get(i - start_line + 1) or annotations.get(i)  # support local or absolute
+        annos = annotations.get(i - start_line + 1) or annotations.get(
+            i
+        )  # support local or absolute
         if annos:
             for annotation in annos:
                 # Handle both string and tuple formats
@@ -143,7 +147,7 @@ def render_snippet(
                     pointer_line = _create_column_pointer(raw, col_start, col_end)
                     pointer_text = Text(pointer_line, style="cyan")
                     table.add_row("│", " " * ln_width, pointer_text)
-                    
+
                     # Create centered message below the arrow
                     centered_message = _create_centered_message(msg, col_start, len(raw))
                     msg_text = Text(centered_message, style=_get_severity_style(severity))
@@ -166,18 +170,18 @@ def test_render_snippet():
         return "success"
     else:
         return "failure\""""
-    
+
     # Test with mixed annotation types
     annotations = {
         1: [("Missing docstring", 1)],  # Point to beginning of function
-        2: ["This line looks good"],     # Simple message without column
-        3: [("Consider simplifying", 8)], # Point to 'True'
+        2: ["This line looks good"],  # Simple message without column
+        3: [("Consider simplifying", 8)],  # Point to 'True'
         5: [
-            ("Unreachable code", 9),     # Point to 'return'
-            "This else branch never executes"  # Simple message
-        ]
+            ("Unreachable code", 9),  # Point to 'return'
+            "This else branch never executes",  # Simple message
+        ],
     }
-    
+
     render_snippet(
         sample_code,
         language="python",
@@ -185,7 +189,7 @@ def test_render_snippet():
         highlight_lines=[1, 3, 5],
         severity=Severity.ERROR,
         annotations=annotations,
-        title="Sample Code with Annotations"
+        title="Sample Code with Annotations",
     )
 
 

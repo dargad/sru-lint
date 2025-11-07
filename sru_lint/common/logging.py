@@ -2,6 +2,7 @@
 Logging configuration for sru-lint.
 Provides a centralized logger that can be used across all modules.
 """
+
 import logging
 import sys
 from typing import Optional
@@ -9,18 +10,18 @@ from typing import Optional
 
 class ColoredFormatter(logging.Formatter):
     """Formatter that adds colors to log levels."""
-    
+
     COLORS = {
-        'DEBUG': '\033[36m',      # Cyan
-        'INFO': '\033[32m',       # Green
-        'WARNING': '\033[33m',    # Yellow
-        'ERROR': '\033[31m',      # Red
-        'CRITICAL': '\033[35m',   # Magenta
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
     }
-    RESET = '\033[0m'
-    
+    RESET = "\033[0m"
+
     def format(self, record):
-        if hasattr(record, 'levelname') and record.levelname in self.COLORS:
+        if hasattr(record, "levelname") and record.levelname in self.COLORS:
             original_levelname = record.levelname
             record.levelname = f"{self.COLORS[original_levelname]}{original_levelname}{self.RESET}"
             formatted = super().format(record)
@@ -32,36 +33,35 @@ class ColoredFormatter(logging.Formatter):
 def setup_logger(name: str = "sru-lint", level: int = logging.INFO) -> logging.Logger:
     """
     Set up the application logger.
-    
+
     Args:
         name: Logger name
         level: Logging level (default: INFO)
-        
+
     Returns:
         Configured logger instance
     """
     logger = logging.getLogger(name)
-    
+
     # Avoid adding multiple handlers if called multiple times
     if logger.handlers:
         logger.setLevel(level)
         for handler in logger.handlers:
             handler.setLevel(level)
         return logger
-    
+
     logger.setLevel(level)
-    
+
     # Create console handler
     handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(level)
-    
+
     # Create formatter
     formatter = ColoredFormatter(
-        fmt='%(levelname)-8s %(name)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        fmt="%(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     handler.setFormatter(formatter)
-    
+
     logger.addHandler(handler)
     return logger
 
@@ -69,10 +69,10 @@ def setup_logger(name: str = "sru-lint", level: int = logging.INFO) -> logging.L
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """
     Get a logger instance.
-    
+
     Args:
         name: Optional logger name. If None, uses the root sru-lint logger.
-        
+
     Returns:
         Logger instance
     """
@@ -84,7 +84,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 def set_log_level(level: int):
     """
     Update the log level for all existing loggers.
-    
+
     Args:
         level: New logging level
     """

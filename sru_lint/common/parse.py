@@ -7,6 +7,7 @@ REVIEW_STATES = {"New", "Unapproved"}
 
 UNRELEASED_DISTRIBUTION = "UNRELEASED"
 
+
 def parse_distributions_field(value: str) -> list[str]:
     """
     Debian changelog 'distributions' can contain multiple suites separated by
@@ -20,10 +21,11 @@ def parse_distributions_field(value: str) -> list[str]:
     tokens = norm.split()
     return tokens
 
+
 def find_offset(lines, search_text: str) -> tuple[int, int]:
     """
     Find the line offset of a given text in a source span.
-    
+
     Args:
         source_span: The source span to search within
         search_text: The text to find

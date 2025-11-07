@@ -13,15 +13,17 @@ class Severity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
 
+
 @dataclass
 class FixIt:
     """
     Optional machine-applicable fix or suggestion.
     If 'replacement' is None, treat as a non-automatic suggestion.
     """
+
     description: str
-    span: Optional[SourceSpan] = None        # where the fix applies (defaults to issue span)
-    replacement: Optional[str] = None        # text replacement to apply to span
+    span: Optional[SourceSpan] = None  # where the fix applies (defaults to issue span)
+    replacement: Optional[str] = None  # text replacement to apply to span
 
     def to_dict(self) -> Dict:
         d = asdict(self)
@@ -35,13 +37,14 @@ class FeedbackItem:
     """
     One issue found by a rule.
     """
-    message: str                              # human-readable description
-    span: SourceSpan                          # where it happened
-    rule_id: ErrorCode                        # stable identifier, e.g., "FMT001"
+
+    message: str  # human-readable description
+    span: SourceSpan  # where it happened
+    rule_id: ErrorCode  # stable identifier, e.g., "FMT001"
     severity: Severity = Severity.ERROR
-    doc_url: Optional[str] = None             # link to more info (optional)
-    hint: Optional[str] = None                # short nudge for quick fixes (optional)
-    code_sample: Optional[str] = None         # small extracted snippet to show in UIs
+    doc_url: Optional[str] = None  # link to more info (optional)
+    hint: Optional[str] = None  # short nudge for quick fixes (optional)
+    code_sample: Optional[str] = None  # small extracted snippet to show in UIs
     tags: List[str] = field(default_factory=list)
     fixits: List[FixIt] = field(default_factory=list)
     meta: Dict[str, str] = field(default_factory=dict)  # freeform extras (e.g., parser context)
@@ -61,7 +64,7 @@ class FeedbackItem:
             "fixits": [f.to_dict() for f in self.fixits],
             "meta": dict(self.meta),
         }
-    
+
     def __str__(self) -> str:
         """String representation of the feedback item."""
         location = f"{self.span.path}:{self.span.start_line}:{self.span.start_col}"
@@ -73,6 +76,7 @@ class FeedbackReport:
     """
     A container for all issues from a single run (possibly across multiple files).
     """
+
     tool_name: str
     tool_version: str
     items: List[FeedbackItem] = field(default_factory=list)
@@ -90,7 +94,10 @@ class FeedbackReport:
         }
         return json.dumps(payload, ensure_ascii=False, indent=indent)
 
-def create_source_span(patched_file, ) -> SourceSpan:
+
+def create_source_span(
+    patched_file,
+) -> SourceSpan:
     """
     Create a SourceSpan for the entire patched file.
     """
@@ -109,8 +116,11 @@ def create_source_span(patched_file, ) -> SourceSpan:
         end_line=total_lines + 1,
         end_col=total_cols + 1,
         start_offset=0,
-        end_offset=sum(len(line.value) + 1 for hunk in patched_file for line in hunk)  # +1 for newlines
+        end_offset=sum(
+            len(line.value) + 1 for hunk in patched_file for line in hunk
+        ),  # +1 for newlines
     )
+
 
 from dataclasses import dataclass
 from typing import List, Optional
@@ -126,6 +136,7 @@ class Severity(Enum):
 @dataclass
 class SourceLine:
     """Represents a single line in the source with context information."""
+
     content: str
     line_number: Optional[int]  # Target line number from patch
     is_added: bool = False
@@ -136,6 +147,7 @@ class SourceLine:
 @dataclass
 class SourceSpan:
     """Represents a span in source code with content and location information."""
+
     path: str
     start_line: int
     start_col: int
@@ -143,73 +155,75 @@ class SourceSpan:
     end_col: int
     start_offset: int = 0
     end_offset: int = 0
-    
+
     # Content information from patch
     content: List[SourceLine] = None  # Only added lines
     content_with_context: List[SourceLine] = None  # Added lines + context
-    
+
     def __post_init__(self):
         """Initialize content lists if not provided."""
         if self.content is None:
             self.content = []
         if self.content_with_context is None:
             self.content_with_context = []
-    
+
     @property
     def lines_added(self) -> List[SourceLine]:
         """Get only the added lines from content_with_context."""
         return [line for line in self.content_with_context if line.is_added]
-    
+
     @property
     def lines_with_context(self) -> List[SourceLine]:
         """Get only the context lines from content_with_context."""
         return [line for line in self.content_with_context if line.is_added or line.is_context]
-    
+
     def get_line_content(self, line_number: int) -> Optional[str]:
         """Get content of a specific line number."""
         for line in self.content_with_context:
             if line.line_number == line_number:
                 return line.content
         return None
-    
+
     def is_empty(self) -> bool:
         """Check if the span has no added content."""
-        return len(self.lines_added) == 0 or all(line.content.strip() == "" for line in self.lines_added)
+        return len(self.lines_added) == 0 or all(
+            line.content.strip() == "" for line in self.lines_added
+        )
 
 
 def create_source_span_from_patch(patched_file, include_context: bool = True) -> SourceSpan:
     """
     Create a SourceSpan from a unidiff PatchedFile.
-    
+
     Args:
         patched_file: PatchedFile object from unidiff
         include_context: Whether to include context lines
-        
+
     Returns:
         SourceSpan with content extracted from the patch
     """
     content = []  # Only added lines
     content_with_context = []  # Added lines + context
-    
+
     # Extract lines from all hunks
     for hunk in patched_file:
         for line in hunk:
             source_line = SourceLine(
-                content=line.value.rstrip('\n'),
+                content=line.value.rstrip("\n"),
                 line_number=line.target_line_no,
                 is_added=line.is_added,
                 is_removed=line.is_removed,
-                is_context=line.is_context
+                is_context=line.is_context,
             )
-            
+
             # Add to content if it's an added line
             if line.is_added:
                 content.append(source_line)
-            
+
             # Add to content_with_context if it's added or (context and we want context)
             if line.is_added or (include_context and line.is_context):
                 content_with_context.append(source_line)
-    
+
     # Determine start and end lines
     start_line = 1
     end_line = 1
@@ -218,7 +232,7 @@ def create_source_span_from_patch(patched_file, include_context: bool = True) ->
         if line_numbers:
             start_line = min(line_numbers)
             end_line = max(line_numbers)
-    
+
     return SourceSpan(
         path=patched_file.path,
         start_line=start_line,
@@ -226,5 +240,5 @@ def create_source_span_from_patch(patched_file, include_context: bool = True) ->
         end_line=end_line,
         end_col=1,
         content=content,
-        content_with_context=content_with_context
+        content_with_context=content_with_context,
     )

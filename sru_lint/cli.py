@@ -17,18 +17,22 @@ from enum import Enum
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.console import Console
 
+
 # Format options enum
 class OutputFormat(str, Enum):
     console = "console"
     json = "json"
+
 
 # Global state for CLI options
 class GlobalOptions:
     verbose: int = 0
     quiet: bool = False
 
+
 global_options = GlobalOptions()
 console = Console()
+
 
 def configure_logging():
     """Configure logging based on global options."""
@@ -43,15 +47,18 @@ def configure_logging():
 
     setup_logger(level=log_level)
 
+
 def verbose_callback(value: int):
     """Callback for verbose option."""
     global_options.verbose = value
     configure_logging()
 
+
 def quiet_callback(value: bool):
     """Callback for quiet option."""
     global_options.quiet = value
     configure_logging()
+
 
 def feedback_to_dict(feedback_item):
     """Convert a FeedbackItem to a dictionary for JSON serialization."""
@@ -65,13 +72,14 @@ def feedback_to_dict(feedback_item):
             "start_col": feedback_item.span.start_col,
             "end_line": feedback_item.span.end_line,
             "end_col": feedback_item.span.end_col,
-        }
+        },
     }
 
     if feedback_item.doc_url:
         result["doc_url"] = feedback_item.doc_url
 
     return result
+
 
 def process_module_list(modules: List[str]) -> List[str]:
     """Process comma-separated module names into a flat list."""
@@ -80,7 +88,7 @@ def process_module_list(modules: List[str]) -> List[str]:
     expanded_modules = []
     for module_item in modules:
         # Split by comma and strip whitespace
-        expanded_modules.extend([m.strip() for m in module_item.split(',')])
+        expanded_modules.extend([m.strip() for m in module_item.split(",")])
 
     # Remove empty items
     expanded_modules = [m for m in expanded_modules if m]
@@ -88,19 +96,21 @@ def process_module_list(modules: List[str]) -> List[str]:
 
     return expanded_modules
 
+
 def is_url(input_str: str) -> bool:
     """Check if the input string is a URL."""
     parsed = urllib.parse.urlparse(input_str)
-    return parsed.scheme in ('http', 'https')
+    return parsed.scheme in ("http", "https")
+
 
 def fetch_url_content(url: str) -> str:
     """Fetch content from a URL."""
     logger = get_logger("cli")
     logger.debug(f"Fetching content from URL: {url}")
-    
+
     try:
         with urllib.request.urlopen(url, timeout=30) as response:
-            content = response.read().decode('utf-8')
+            content = response.read().decode("utf-8")
             logger.debug(f"Fetched {len(content)} characters from URL")
             return content
     except Exception as e:
@@ -108,10 +118,11 @@ def fetch_url_content(url: str) -> str:
         typer.echo(f"Error: Failed to fetch content from URL: {e}", err=True)
         raise typer.Exit(code=2)
 
+
 def read_input_content(input_source: str) -> str:
     """Read patch content from input source (file path, URL, or stdin)."""
     logger = get_logger("cli")
-    
+
     if input_source == "-":
         # Read from stdin
         logger.debug("Reading patch from stdin")
@@ -125,7 +136,7 @@ def read_input_content(input_source: str) -> str:
         # Read from file path
         logger.debug(f"Reading patch from file: {input_source}")
         try:
-            with open(input_source, 'r', encoding='utf-8') as file:
+            with open(input_source, "r", encoding="utf-8") as file:
                 patch_content = file.read()
             logger.debug(f"Read {len(patch_content)} characters from file")
         except FileNotFoundError:
@@ -139,6 +150,7 @@ def read_input_content(input_source: str) -> str:
 
     return patch_content
 
+
 def process_input_to_files(patch_content: str):
     """Convert patch content to ProcessedFile objects."""
     logger = get_logger("cli")
@@ -150,6 +162,7 @@ def process_input_to_files(patch_content: str):
 
     logger.info(f"Converted patch to {len(processed_files)} processed files")
     return processed_files
+
 
 def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
     """Load plugins and filter them based on specified modules."""
@@ -181,6 +194,7 @@ def load_and_filter_plugins(modules: List[str], output_format: OutputFormat):
     logger.info(f"Running {len(plugins)} plugins")
     return plugins
 
+
 def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[FeedbackItem]:
     """Run all plugins on the processed files and collect feedback."""
     logger = get_logger("cli")
@@ -197,7 +211,9 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
 
             plugin_feedback = plugin.feedback
             feedback.extend(plugin.feedback)
-            logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items")
+            logger.debug(
+                f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items"
+            )
 
     else:
         # Show progress with rich progress bar
@@ -206,9 +222,8 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
             TextColumn("[progress.description]{task.description}"),
             TimeElapsedColumn(),
             console=console,
-            transient=True  # Remove progress bar when done
+            transient=True,  # Remove progress bar when done
         ) as progress:
-
             for plugin in plugins:
                 # Create a task for this plugin
                 task = progress.add_task(f"Running {plugin.__symbolic_name__}...", total=None)
@@ -223,10 +238,14 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
                 feedback.extend(plugin_feedback)
 
                 elapsed = time.time() - start_time
-                logger.debug(f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s")
+                logger.debug(
+                    f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s"
+                )
 
                 # Update task description to show completion
-                progress.update(task, description=f"✓ {plugin.__symbolic_name__} ({len(plugin_feedback)} items)")
+                progress.update(
+                    task, description=f"✓ {plugin.__symbolic_name__} ({len(plugin_feedback)} items)"
+                )
 
                 # Brief pause to show the completed status
                 time.sleep(0.1)
@@ -236,6 +255,7 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> List[F
 
     return feedback
 
+
 def analyze_feedback(feedback: List[FeedbackItem]) -> Tuple[int, int, int]:
     """Analyze feedback and count items by severity."""
     logger = get_logger("cli")
@@ -244,14 +264,18 @@ def analyze_feedback(feedback: List[FeedbackItem]) -> Tuple[int, int, int]:
     warning_count = sum(1 for item in feedback if item.severity.value == "warning")
     info_count = sum(1 for item in feedback if item.severity.value == "info")
 
-    logger.info(f"Collected {len(feedback)} feedback items: {error_count} errors, {warning_count} warnings, {info_count} info")
+    logger.info(
+        f"Collected {len(feedback)} feedback items: {error_count} errors, {warning_count} warnings, {info_count} info"
+    )
 
     return error_count, warning_count, info_count
+
 
 def output_json_feedback(feedback: List[FeedbackItem]):
     """Output feedback in JSON format."""
     feedback_dicts = [feedback_to_dict(item) for item in feedback]
     typer.echo(json.dumps(feedback_dicts, indent=2, cls=ErrorEnumEncoder))
+
 
 def output_console_feedback(feedback: List[FeedbackItem]):
     """Output feedback in console format with snippets."""
@@ -266,7 +290,10 @@ def output_console_feedback(feedback: List[FeedbackItem]):
                     "info": typer.colors.BLUE,
                 }.get(item.severity.value, None)
 
-                typer.secho(f"- {item.message} (Severity: {item.severity.value}): {item.span.path}", fg=severity_color)
+                typer.secho(
+                    f"- {item.message} (Severity: {item.severity.value}): {item.span.path}",
+                    fg=severity_color,
+                )
 
                 if not item.span.is_empty():
                     render_snippet(
@@ -277,17 +304,18 @@ def output_console_feedback(feedback: List[FeedbackItem]):
                         annotations={
                             item.span.start_line: [
                                 (
-                                    item.message, 
+                                    item.message,
                                     item.span.start_col if item.span.start_col >= 0 else 0,
-                                    item.span.end_col if item.span.end_col >= 0 else 0
+                                    item.span.end_col if item.span.end_col >= 0 else 0,
                                 )
                             ]
-                        }
+                        },
                     )
                 if item.doc_url:
                     typer.secho(f"  More info: {item.doc_url}", fg=typer.colors.CYAN)
         else:
             typer.secho("✅ No issues found", fg=typer.colors.GREEN)
+
 
 def output_feedback(feedback: List[FeedbackItem], output_format: OutputFormat):
     """Output feedback in the specified format."""
@@ -295,6 +323,7 @@ def output_feedback(feedback: List[FeedbackItem], output_format: OutputFormat):
         output_json_feedback(feedback)
     else:
         output_console_feedback(feedback)
+
 
 def show_processing_summary(processed_files, plugins, output_format: OutputFormat):
     """Show a summary of what will be processed."""
@@ -316,26 +345,33 @@ def show_processing_summary(processed_files, plugins, output_format: OutputForma
             console.print(f"  [dim]• {p.__symbolic_name__}[/dim]")
         console.print()
 
+
 app = typer.Typer(
     help="sru-lint - Static analysis tool for Ubuntu SRU patches",
     add_completion=False,
-    callback=lambda: None  # Dummy callback to allow global options
+    callback=lambda: None,  # Dummy callback to allow global options
 )
+
 
 # Add global options to the main app
 @app.callback()
 def main(
     verbose: int = typer.Option(
-        0, "--verbose", "-v", count=True,
+        0,
+        "--verbose",
+        "-v",
+        count=True,
         help="Increase verbosity (-v for INFO, -vv for DEBUG)",
         callback=verbose_callback,
-        is_eager=True
+        is_eager=True,
     ),
     quiet: bool = typer.Option(
-        False, "--quiet", "-q",
+        False,
+        "--quiet",
+        "-q",
         help="Suppress all output except errors",
         callback=quiet_callback,
-        is_eager=True
+        is_eager=True,
     ),
 ):
     """Global options for sru-lint."""
@@ -348,12 +384,16 @@ def check(
         "-", metavar="INPUT", help="File path, URL, or '-' for stdin"
     ),
     modules: Optional[list[str]] = typer.Option(
-        ["all"], "--modules", "-m",
-        help="Only run the specified module(s). Default is 'all'. Can be specified as comma-separated list or multiple times"
+        ["all"],
+        "--modules",
+        "-m",
+        help="Only run the specified module(s). Default is 'all'. Can be specified as comma-separated list or multiple times",
     ),
     format: OutputFormat = typer.Option(
-        OutputFormat.console, "--format", "-f",
-        help="Output format: 'console' for human-readable output with snippets, 'json' for machine-readable JSON array"
+        OutputFormat.console,
+        "--format",
+        "-f",
+        help="Output format: 'console' for human-readable output with snippets, 'json' for machine-readable JSON array",
     ),
 ):
     """
@@ -421,7 +461,9 @@ def plugins():
         plugin_description = " ".join(plugin_description.split())
         # Print formatted output with aligned descriptions
         typer.echo(f"- {plugin_name:<{max_name_length}} : {plugin_description}")
-        logger.debug(f"Plugin {plugin_name}: {plugin.__class__.__module__}.{plugin.__class__.__name__}")
+        logger.debug(
+            f"Plugin {plugin_name}: {plugin.__class__.__module__}.{plugin.__class__.__name__}"
+        )
 
 
 @app.command()

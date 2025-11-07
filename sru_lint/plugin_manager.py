@@ -8,7 +8,7 @@ import sru_lint.plugins  # import the plugins module or package
 
 class PluginManager:
     """Manager to discover and instantiate all Plugin subclasses in sru_lint.plugins."""
-    
+
     @staticmethod
     def load_plugins():
         """Discover all Plugin subclasses in sru_lint.plugins and its submodules and return a list of their instances."""
@@ -28,24 +28,32 @@ class PluginManager:
 
         # Inspect all submodules for Plugin subclasses
         for module_name, module in list(sys.modules.items()):
-            if module_name.startswith(sru_lint.plugins.__name__ + "." if hasattr(sru_lint.plugins, "__name__") else "sru_lint.plugins."):
+            if module_name.startswith(
+                sru_lint.plugins.__name__ + "."
+                if hasattr(sru_lint.plugins, "__name__")
+                else "sru_lint.plugins."
+            ):
                 for _, obj in inspect.getmembers(module, inspect.isclass):
                     try:
-                        if issubclass(obj, Plugin) and obj is not Plugin and obj not in discovered_classes:
+                        if (
+                            issubclass(obj, Plugin)
+                            and obj is not Plugin
+                            and obj not in discovered_classes
+                        ):
                             plugins.append(obj())
                             discovered_classes.add(obj)
                     except TypeError:
                         # obj might not be a class we can check with issubclass
                         pass
         return plugins
-    
+
     @staticmethod
     def _import_submodules_recursively(package):
         """Recursively import all submodules and subpackages of a given package."""
         # Check if it's a package by looking for __path__ attribute
         if not hasattr(package, "__path__"):
             return
-            
+
         for finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
             try:
                 submodule = importlib.import_module(name)
