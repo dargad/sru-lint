@@ -63,3 +63,5 @@ Spread
 landscape
 lastmod
 yaml
+Jira
+Kanban
