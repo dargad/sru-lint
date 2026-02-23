@@ -1,56 +1,67 @@
 """
 Helper module for Launchpad integration.
 Provides cached Launchpad connection and utility functions.
+Uses thread-local storage for connections (httplib2 is not thread-safe).
 """
 
 import re
+import threading
 from typing import Optional
 
 from launchpadlib.launchpad import Launchpad
 
 from sru_lint.common.logging import get_logger
 
+# Thread-local storage for Launchpad connections
+_thread_local = threading.local()
+
+# Shared cache for valid distributions (protected by lock)
+_distributions_cache: set[str] | None = None
+_distributions_lock = threading.Lock()
+
 
 class LaunchpadHelper:
-    """Singleton helper class for Launchpad interactions."""
-
-    _instance: Optional["LaunchpadHelper"] = None
-    _launchpad: Launchpad | None = None
-    _valid_distributions: set[str] | None = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    """
+    Helper class for Launchpad interactions.
+    
+    Uses thread-local connections to avoid httplib2 thread-safety issues.
+    Each thread gets its own Launchpad connection.
+    """
 
     def __init__(self):
-        """Initialize the LaunchpadHelper (only once due to singleton pattern)."""
-        if self._launchpad is None:
-            self.logger = get_logger("launchpad_helper")
+        """Initialize the LaunchpadHelper with a thread-local connection."""
+        self.logger = get_logger("launchpad_helper")
+        self._ensure_connection()
 
-            self.logger.info("Initializing Launchpad connection")
+    def _ensure_connection(self):
+        """Ensure a Launchpad connection exists for the current thread."""
+        if not hasattr(_thread_local, "launchpad"):
+            self.logger.info(f"Initializing Launchpad connection for thread {threading.current_thread().name}")
             cachedir = "~/.launchpadlib/cache"
-            self._launchpad = Launchpad.login_anonymously(
+            _thread_local.launchpad = Launchpad.login_anonymously(
                 "sru-lint", "production", cachedir, version="devel"
             )
-            self._ubuntu = self._launchpad.distributions["ubuntu"]
-            self._archive = self._ubuntu.main_archive
+            _thread_local.ubuntu = _thread_local.launchpad.distributions["ubuntu"]
+            _thread_local.archive = _thread_local.ubuntu.main_archive
             self.logger.debug("Launchpad connection established")
 
     @property
     def launchpad(self) -> Launchpad:
-        """Get the Launchpad instance."""
-        return self._launchpad
+        """Get the Launchpad instance for the current thread."""
+        self._ensure_connection()
+        return _thread_local.launchpad
 
     @property
     def ubuntu(self):
-        """Get the Ubuntu distribution object."""
-        return self._ubuntu
+        """Get the Ubuntu distribution object for the current thread."""
+        self._ensure_connection()
+        return _thread_local.ubuntu
 
     @property
     def archive(self):
-        """Get the Ubuntu main archive object."""
-        return self._archive
+        """Get the Ubuntu main archive object for the current thread."""
+        self._ensure_connection()
+        return _thread_local.archive
 
     def get_bug(self, bug_number: int):
         """
@@ -62,9 +73,10 @@ class LaunchpadHelper:
         Returns:
             The bug object from Launchpad, or None if not found
         """
+        self._ensure_connection()
         try:
             self.logger.debug(f"Fetching bug #{bug_number}")
-            bug = self._launchpad.bugs[bug_number]
+            bug = _thread_local.launchpad.bugs[bug_number]
             self.logger.debug(f"Successfully fetched bug #{bug_number}")
             return bug
         except Exception as e:
@@ -134,9 +146,10 @@ class LaunchpadHelper:
         Returns:
             The series object, or None if not found
         """
+        self._ensure_connection()
         try:
             self.logger.debug(f"Searching for series '{series_name}'")
-            series = self._ubuntu.getSeries(name_or_version=series_name)
+            series = _thread_local.ubuntu.getSeries(name_or_version=series_name)
             self.logger.debug(f"Found series '{series_name}'")
             return series
         except Exception as e:
@@ -155,12 +168,16 @@ class LaunchpadHelper:
         Returns:
             Set of valid distribution names (e.g., {'jammy', 'focal', 'jammy-proposed', ...})
         """
-        if self._valid_distributions is not None and include_pockets:
-            self.logger.debug(
-                f"Using cached distributions ({len(self._valid_distributions)} items)"
-            )
-            return self._valid_distributions
+        global _distributions_cache
+        
+        with _distributions_lock:
+            if _distributions_cache is not None and include_pockets:
+                self.logger.debug(
+                    f"Using cached distributions ({len(_distributions_cache)} items)"
+                )
+                return _distributions_cache
 
+        self._ensure_connection()
         self.logger.info(f"Fetching valid distributions (include_pockets={include_pockets})")
 
         distributions = set()
@@ -171,7 +188,7 @@ class LaunchpadHelper:
         try:
             # Get all series (including current and supported releases)
             series_count = 0
-            for series in self._ubuntu.series:
+            for series in _thread_local.ubuntu.series:
                 # Only include series that are current or supported
                 if series.active:
                     series_name = series.name
@@ -182,7 +199,8 @@ class LaunchpadHelper:
 
             # Cache the full set (with pockets) for future use
             if include_pockets:
-                self._valid_distributions = distributions
+                with _distributions_lock:
+                    _distributions_cache = distributions
 
             self.logger.info(
                 f"Fetched {series_count} active series, generated {len(distributions)} distribution names"
@@ -317,9 +335,12 @@ _launchpad_helper = None
 def get_launchpad_helper() -> LaunchpadHelper:
     """
     Get the global LaunchpadHelper instance.
+    
+    Note: The helper uses thread-local connections internally,
+    so it's safe to use from multiple threads.
 
     Returns:
-        The singleton LaunchpadHelper instance
+        The LaunchpadHelper instance
     """
     global _launchpad_helper
     if _launchpad_helper is None:
