@@ -4,6 +4,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 
 import typer
@@ -195,28 +196,50 @@ def load_and_filter_plugins(modules: list[str], output_format: OutputFormat):
     return plugins
 
 
-def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[FeedbackItem]:
-    """Run all plugins on the processed files and collect feedback."""
+def _run_single_plugin(plugin, processed_files) -> tuple[str, list[FeedbackItem], float]:
+    """Run a single plugin and return its name, feedback, and elapsed time."""
     logger = get_logger("cli")
+    logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
+    
+    start_time = time.time()
+    
+    with plugin as p:
+        plugin.process(processed_files)
+    
+    plugin_feedback = list(plugin.feedback)  # Make a copy of feedback
+    elapsed = time.time() - start_time
+    
+    logger.debug(
+        f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s"
+    )
+    
+    return plugin.__symbolic_name__, plugin_feedback, elapsed
+
+
+def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[FeedbackItem]:
+    """Run all plugins concurrently on the processed files and collect feedback."""
+    logger = get_logger("cli")
+
+    if not plugins:
+        return []
 
     feedback = []
 
     # Don't show progress in JSON mode or if quiet
     if output_format == OutputFormat.json or global_options.quiet:
-        for plugin in plugins:
-            logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-
-            with plugin as p:
-                plugin.process(processed_files)
-
-            plugin_feedback = plugin.feedback
-            feedback.extend(plugin.feedback)
-            logger.debug(
-                f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items"
-            )
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(_run_single_plugin, plugin, processed_files): plugin
+                for plugin in plugins
+            }
+            
+            for future in as_completed(futures):
+                plugin_name, plugin_feedback, elapsed = future.result()
+                feedback.extend(plugin_feedback)
 
     else:
         # Show progress with rich progress bar
+        total_plugins = len(plugins)
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -224,34 +247,28 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[F
             console=console,
             transient=True,  # Remove progress bar when done
         ) as progress:
-            for plugin in plugins:
-                # Create a task for this plugin
-                task = progress.add_task(f"Running {plugin.__symbolic_name__}...", total=None)
-
-                logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-                start_time = time.time()
-
-                with plugin as p:
-                    plugin.process(processed_files)
-
-                plugin_feedback = plugin.feedback
-                feedback.extend(plugin_feedback)
-
-                elapsed = time.time() - start_time
-                logger.debug(
-                    f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s"
-                )
-
-                # Update task description to show completion
-                progress.update(
-                    task, description=f"✓ {plugin.__symbolic_name__} ({len(plugin_feedback)} items)"
-                )
-
-                # Brief pause to show the completed status
-                time.sleep(0.1)
-
-                # Remove the completed task
-                progress.remove_task(task)
+            task = progress.add_task(
+                f"Running plugins: 0 of {total_plugins} completed", total=total_plugins
+            )
+            
+            with ThreadPoolExecutor() as executor:
+                futures = {
+                    executor.submit(_run_single_plugin, plugin, processed_files): plugin
+                    for plugin in plugins
+                }
+                
+                completed_count = 0
+                for future in as_completed(futures):
+                    plugin_name, plugin_feedback, elapsed = future.result()
+                    feedback.extend(plugin_feedback)
+                    completed_count += 1
+                    
+                    # Update progress to show completion count
+                    progress.update(
+                        task,
+                        completed=completed_count,
+                        description=f"Running plugins: {completed_count} of {total_plugins} completed"
+                    )
 
     return feedback
 
