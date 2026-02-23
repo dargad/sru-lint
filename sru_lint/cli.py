@@ -239,6 +239,7 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[F
 
     else:
         # Show progress with rich progress bar
+        total_plugins = len(plugins)
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -246,11 +247,9 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[F
             console=console,
             transient=True,  # Remove progress bar when done
         ) as progress:
-            # Create tasks for all plugins upfront
-            plugin_tasks = {}
-            for plugin in plugins:
-                task = progress.add_task(f"Running {plugin.__symbolic_name__}...", total=None)
-                plugin_tasks[plugin.__symbolic_name__] = task
+            task = progress.add_task(
+                f"Running plugins: 0 of {total_plugins} completed", total=total_plugins
+            )
             
             with ThreadPoolExecutor() as executor:
                 futures = {
@@ -258,22 +257,18 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[F
                     for plugin in plugins
                 }
                 
+                completed_count = 0
                 for future in as_completed(futures):
                     plugin_name, plugin_feedback, elapsed = future.result()
                     feedback.extend(plugin_feedback)
+                    completed_count += 1
                     
-                    # Update task description to show completion
-                    task = plugin_tasks[plugin_name]
+                    # Update progress to show completion count
                     progress.update(
                         task,
-                        description=f"✓ {plugin_name} ({len(plugin_feedback)} items, {elapsed:.2f}s)"
+                        completed=completed_count,
+                        description=f"Running plugins: {completed_count} of {total_plugins} completed"
                     )
-                    
-                    # Brief pause to show the completed status
-                    time.sleep(0.1)
-                    
-                    # Remove the completed task
-                    progress.remove_task(task)
 
     return feedback
 
