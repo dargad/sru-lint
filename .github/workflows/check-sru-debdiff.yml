@@ -1,0 +1,122 @@
+name: Check SRU debdiff
+
+on:
+  workflow_dispatch:
+    inputs:
+      launchpad_bug_url:
+        description: "Launchpad bug URL (e.g. https://bugs.launchpad.net/netplan/+bug/2139598)"
+        required: true
+        type: string
+
+jobs:
+  check-debdiff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate input and find .debdiff attachments
+        id: find_debdiffs
+        env:
+          BUG_URL: ${{ inputs.launchpad_bug_url }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import urllib.parse
+          import urllib.request
+
+          raw_bug_url = os.environ["BUG_URL"].strip()
+          if not raw_bug_url:
+              raise SystemExit("Input 'launchpad_bug_url' cannot be empty")
+
+          parsed = urllib.parse.urlparse(raw_bug_url)
+          allowed_hosts = {"bugs.launchpad.net", "launchpad.net"}
+
+          if parsed.scheme != "https":
+              raise SystemExit("'launchpad_bug_url' must use https://")
+
+          if parsed.netloc.lower() not in allowed_hosts:
+              raise SystemExit(
+                  "'launchpad_bug_url' must point to bugs.launchpad.net or launchpad.net"
+              )
+
+          if "/+bug/" not in parsed.path:
+              raise SystemExit(
+                  "'launchpad_bug_url' must be a Launchpad bug URL containing '/+bug/<id>'"
+              )
+
+          bug_part = parsed.path.split("/+bug/", 1)[1].split("/", 1)[0]
+          if not bug_part.isdigit():
+              raise SystemExit("Could not parse numeric Launchpad bug ID from URL")
+
+          normalized_bug_url = urllib.parse.urlunparse(
+              (parsed.scheme, parsed.netloc, parsed.path, "", "", "")
+          )
+
+          request = urllib.request.Request(
+              normalized_bug_url,
+              headers={"User-Agent": "sru-lint-github-action/1.0"},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              html = response.read().decode("utf-8", errors="replace")
+
+          matches = re.findall(
+              r"href=[\"']([^\"']+\.debdiff(?:\?[^\"']*)?)[\"']",
+              html,
+              flags=re.IGNORECASE,
+          )
+
+          urls = []
+          seen = set()
+          for href in matches:
+              full_url = urllib.parse.urljoin(normalized_bug_url, href)
+              full_url_lower = full_url.lower()
+              if full_url_lower.endswith(".debdiff") or ".debdiff?" in full_url_lower:
+                  if full_url not in seen:
+                      seen.add(full_url)
+                      urls.append(full_url)
+
+          if not urls:
+              raise SystemExit("No .debdiff attachments found on the provided Launchpad bug page")
+
+          print(f"Found {len(urls)} .debdiff attachment(s)")
+
+          output_file = os.environ["GITHUB_OUTPUT"]
+          with open(output_file, "a", encoding="utf-8") as f:
+              f.write("debdiff_urls<<EOF\n")
+              f.write("\n".join(urls))
+              f.write("\nEOF\n")
+          PY
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up Poetry
+        uses: abatilo/actions-poetry@v4
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          poetry install
+
+      - name: Run sru-lint on each .debdiff attachment
+        env:
+          DEBDIFF_URLS: ${{ steps.find_debdiffs.outputs.debdiff_urls }}
+        run: |
+          status=0
+
+          while IFS= read -r debdiff_url; do
+            [ -z "$debdiff_url" ] && continue
+            echo "Checking: $debdiff_url"
+            if ! poetry run sru-lint check "$debdiff_url"; then
+              status=1
+            fi
+          done <<EOF
+          $DEBDIFF_URLS
+          EOF
+
+          exit "$status"
