@@ -1,36 +1,32 @@
 # Canonical theme (still needed for Furo theme and custom templates)
-canonical-sphinx>=0.5.1
-
-# Pin Sphinx to avoid resolution issues with incompatible extensions
-Sphinx>=7.4.0,<9
+canonical-sphinx~=0.6
 
 # Extensions previously auto-loaded by canonical-sphinx
-myst-parser>=3.0.0
-sphinx-autobuild>=2024.0.0
-sphinx-copybutton>=0.5.0
-sphinx-design>=0.6.0
-sphinx-notfound-page>=1.0.4
-sphinx-reredirects>=0.1.6
-sphinx-tabs>=3.4.7
-sphinxcontrib-jquery>=4.1
-sphinxext-opengraph>=0.9.1
+myst-parser~=4.0    # v5.0.0 causes version conflicts
+sphinx-autobuild
+sphinx-design
+sphinx-notfound-page
+sphinx-reredirects
+sphinx-tabs
+sphinxcontrib-jquery
+sphinxext-opengraph
 
 # Extra extensions, previously bundled as canonical-sphinx-extensions
 sphinx-config-options>=0.1.0
 sphinx-contributor-listing>=0.1.0
 sphinx-filtered-toctree>=0.1.0
-sphinx-related-links>=0.1.1
+sphinx-related-links>=0.1.2
 sphinx-roles>=0.1.0
-sphinx-terminal>=0.1.1
+sphinx-terminal>=1.0.2
 sphinx-ubuntu-images>=0.1.0
 sphinx-youtube-links>=0.1.0
 
 # Other dependencies
-packaging>=23.0
-sphinxcontrib-svg2pdfconverter[CairoSVG]>=1.2.0
-sphinx-last-updated-by-git>=0.3.0
-sphinx-sitemap>=2.5.0
+packaging
+sphinxcontrib-svg2pdfconverter[CairoSVG]
+sphinx-last-updated-by-git
+sphinx-sitemap
 
 # Vale dependencies
-rst2html>=2020.0.0
-vale>=3.0.0
+rst2html
+vale
