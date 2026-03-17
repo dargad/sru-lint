@@ -1,9 +1,20 @@
 [tool.poetry]
 name = "sru-lint"
 version = "0.1.0"
-description = ""
+description = "A linter for Ubuntu SRU (Stable Release Update) packages"
 authors = ["Dariusz Gadomski <dgadomski@ubuntu.com>"]
 readme = "README.md"
+license = "MIT"
+keywords = ["ubuntu", "sru", "linter", "debian", "packaging"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
