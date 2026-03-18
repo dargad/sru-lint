@@ -19,6 +19,9 @@ git clone https://github.com/dargad/sru-lint.git
 cd sru-lint
 poetry install
 
+# Check from a patches-unapplied git repo (the current directory)
+sru-lint check .
+
 # Check a patch file or URL
 sru-lint check path/to/patch.debdiff  # if installed via snap
 poetry run sru-lint check path/to/patch.debdiff  # if using Poetry
