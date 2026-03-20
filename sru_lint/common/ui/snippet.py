@@ -100,7 +100,7 @@ def render_snippet(
     start_col: int = 1,
     highlight_lines: Iterable[int] | None = None,
     severity: Severity | None = None,
-    annotations: dict[int, list[str] | list[tuple[str, int]]] | None = None,
+    annotations: dict[int, list[str] | list[tuple[str, int, int]]] | None = None,
     title: str | None = None,
 ):
     """
@@ -110,7 +110,7 @@ def render_snippet(
     - highlight_lines: set/list of line numbers (1-based within snippet) to emphasize.
     - annotations: dict of {line_number: [messages...]} where messages can be:
         - str: simple message without column positioning
-        - tuple(message, column): message with up-arrow pointing to specific column
+        - tuple(message, col_start, col_end): message with up-arrow pointing to column range
     """
     highlight_lines = set(highlight_lines or [])
     annotations = annotations or {}

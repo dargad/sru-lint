@@ -1,3 +1,4 @@
+from sru_lint.common.errors import ErrorCode
 from sru_lint.plugins.plugin_base import Plugin, ProcessedFile
 
 
@@ -17,7 +18,7 @@ class DummyPlugin(Plugin):
             if line.is_added and "TODO" in line.content:
                 self.create_line_feedback(
                     message="TODO comment found in added line",
-                    rule_id="DUMMY001",
+                    rule_id=ErrorCode.DUMMY_TODO,
                     source_span=processed_file.source_span,
                     target_line_content=line.content,
                 )
@@ -25,7 +26,7 @@ class DummyPlugin(Plugin):
             if line.is_added and "FIXME" in line.content:
                 self.create_line_feedback(
                     message="FIXME comment found in added line",
-                    rule_id="DUMMY002",
+                    rule_id=ErrorCode.DUMMY_FIXME,
                     source_span=processed_file.source_span,
                     target_line_content=line.content,
                 )

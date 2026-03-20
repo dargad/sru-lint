@@ -55,7 +55,7 @@ class PluginManager:
         if not hasattr(package, "__path__"):
             return
 
-        for finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
+        for _finder, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
             try:
                 submodule = importlib.import_module(name)
                 # If this is a package, recursively import its submodules

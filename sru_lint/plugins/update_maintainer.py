@@ -46,7 +46,7 @@ class UpdateMaintainer(Plugin):
             [line.content for line in processed_file.source_span.lines_with_context]
         )
         control_data = Deb822(content)
-        maintainer = original_maintainer = None
+        maintainer = None
 
         if self.MAINTAINER_FIELD in control_data:
             self.logger.debug(f"Found {self.MAINTAINER_FIELD} in control file")

@@ -45,9 +45,9 @@ fields when they are present.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Optional
 from urllib.parse import urlparse
 
 from sru_lint.common.errors import ErrorCode
@@ -111,7 +111,7 @@ def _is_plausible_url(value: str) -> bool:
 
 def _validate_forwarded(value: str) -> bool:
     """Validate Forwarded field value.
-    
+
     According to DEP-3, any value other than 'no' or 'not-needed' indicates
     that the patch has been forwarded upstream; ideally it should be a URL.
     """
@@ -126,7 +126,7 @@ def _validate_forwarded(value: str) -> bool:
 @dataclass
 class Dep3FieldDefinition:
     """Definition of a DEP3 header field.
-    
+
     Attributes:
         names: List of field names (first is primary, rest are aliases)
         required: Whether at least one of the names must be present
@@ -136,12 +136,13 @@ class Dep3FieldDefinition:
         error_message: Error message template for validation failures
         severity: Severity level for validation failures
     """
+
     names: list[str]
     required: bool
     requires_content: bool = False
-    validator: Optional[Callable[[str], bool]] = None
-    error_code: Optional[ErrorCode] = None
-    error_message: Optional[str] = None
+    validator: Callable[[str], bool] | None = None
+    error_code: ErrorCode | None = None
+    error_message: str | None = None
     severity: Severity = Severity.ERROR
 
 
@@ -200,12 +201,12 @@ class Dep3HeaderParser:
 
     def parse(self, patch_text: str, file_path: str = "patch") -> dict[str, tuple[str, int]]:
         """Parse DEP3 headers from patch text.
-        
+
         Returns:
             Dictionary mapping field names to (value, line_number) tuples.
         """
         lines = patch_text.replace("\r\n", "\n").split("\n")
-        
+
         # Find header section (stops at ---)
         header_lines: list[tuple[str, int]] = []
         for line_num, line in enumerate(lines, 1):
@@ -213,16 +214,16 @@ class Dep3HeaderParser:
             if stripped == "---":
                 break
             header_lines.append((line, line_num))
-        
+
         # Parse fields
         fields: dict[str, tuple[str, int]] = {}
         current_field: str | None = None
         current_value: str = ""
         current_line: int = 1
-        
+
         for raw_line, line_num in header_lines:
             line = _strip_comment_prefix(raw_line).rstrip("\r\n")
-            
+
             # Empty line resets parsing
             if not line.strip():
                 if current_field:
@@ -230,36 +231,36 @@ class Dep3HeaderParser:
                     current_field = None
                     current_value = ""
                 continue
-            
+
             # Check for field definition: <name>:<value>
             m = re.match(r"^(?P<name>[\w.-]+)\s*:\s*(?P<value>.*)$", line)
             if m:
                 # Save previous field if any
                 if current_field:
                     fields[current_field] = (current_value, current_line)
-                
+
                 # Start new field
                 current_field = m.group("name").strip().lower()
                 current_value = m.group("value")
                 current_line = line_num
                 continue
-            
+
             # Continuation line (starts with space or tab)
             if current_field and line.startswith((" ", "\t")):
                 # Append to current value
                 current_value += "\n" + line.strip()
                 continue
-            
+
             # Non-continuation line resets field
             if current_field:
                 fields[current_field] = (current_value, current_line)
                 current_field = None
                 current_value = ""
-        
+
         # Save final field if any
         if current_field:
             fields[current_field] = (current_value, current_line)
-        
+
         return fields
 
 
@@ -311,7 +312,7 @@ def check_dep3_compliance(
     # Parse headers using the structured parser
     parser = Dep3HeaderParser(DEP3_FIELD_DEFINITIONS)
     fields = parser.parse(patch_text, file_path)
-    
+
     feedback_items: list[FeedbackItem] = []
 
     # Helper function to create a SourceSpan for DEP-3 feedback
@@ -335,20 +336,21 @@ def check_dep3_compliance(
     for field_def in DEP3_FIELD_DEFINITIONS:
         # Check if any of the alternative names for this field are present
         found_fields = [(name, fields[name]) for name in field_def.names if name in fields]
-        
+
         if field_def.required and not found_fields:
             # Required field is missing
             source_span = create_dep3_source_span(1)
             feedback_items.append(
                 FeedbackItem(
-                    message=field_def.error_message or f"Missing required field: {'/'.join(field_def.names)}",
+                    message=field_def.error_message
+                    or f"Missing required field: {'/'.join(field_def.names)}",
                     rule_id=field_def.error_code or ErrorCode.PATCH_DEP3_FORMAT,
                     severity=field_def.severity,
                     span=source_span,
                 )
             )
             continue
-        
+
         # Check content requirement and validation
         for field_name, (value, line_num) in found_fields:
             # Check if field requires non-empty content
@@ -362,7 +364,7 @@ def check_dep3_compliance(
                         span=source_span,
                     )
                 )
-            
+
             # Run validator if provided
             if field_def.validator and value.strip():
                 if not field_def.validator(value):
@@ -375,11 +377,11 @@ def check_dep3_compliance(
                             span=source_span,
                         )
                     )
-    
+
     # Special case: Check that either Origin OR Author/From is present
     origin_present = "origin" in fields
     author_present = any(name in fields for name in ["author", "from"])
-    
+
     if not (origin_present or author_present):
         source_span = create_dep3_source_span(1)
         feedback_items.append(
