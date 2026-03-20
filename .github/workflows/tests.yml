@@ -1,4 +1,4 @@
-name: Run Python unit tests
+name: Run Python tests
 
 on:
   push:
@@ -21,11 +21,20 @@ jobs:
 
       - name: Set up Poetry
         uses: abatilo/actions-poetry@v4
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           poetry install
+
+      - name: ruff linter
+        run: poetry run ruff check .
+
+      - name: ruff format check
+        run: poetry run ruff format --check .
+
+      - name: mypy type checker
+        run: poetry run mypy sru_lint --ignore-missing-imports
 
       - name: Run unit tests
         run: |
