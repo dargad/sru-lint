@@ -11,7 +11,7 @@ from sru_lint.common.patch_processor import ProcessedFile
 class Plugin(ABC):
     """Base class for plugins that process patches (parsed by unidiff)."""
 
-    __symbolic_name__: str = None
+    __symbolic_name__: str | None = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -37,9 +37,9 @@ class Plugin(ABC):
         self.logger.debug(f"Exiting plugin context: {self.__symbolic_name__}")
         self.post_process()
 
-    def post_process(self):
+    def post_process(self):  # noqa: B027
         """Hook for any post-processing after all files have been processed."""
-        pass
+        pass  # Default: subclasses can override
 
     @staticmethod
     def _generate_symbolic_name(name: str) -> str:
@@ -48,7 +48,7 @@ class Plugin(ABC):
         parts = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+|\d+", name)
         return "-".join(p.lower() for p in parts)
 
-    def register_file_patterns(self):
+    def register_file_patterns(self):  # noqa: B027
         """
         Register file patterns that this plugin wants to check.
 
@@ -60,7 +60,7 @@ class Plugin(ABC):
                 self.add_file_pattern("debian/changelog")
                 self.add_file_patterns(["*.py", "*.pyx"])
         """
-        pass
+        pass  # Default: subclasses should override
 
     def add_file_pattern(self, pattern: str):
         """

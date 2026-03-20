@@ -85,12 +85,10 @@ class ChangelogEntry(Plugin):
         self.logger.debug("Checking changelog version order")
         errors_found = False
 
-        for idx, (prev, curr) in enumerate(zip(headers, headers[1:])):
+        for prev, curr in zip(headers, headers[1:], strict=False):
             v_prev = Version(prev.version)
             v_curr = Version(curr.version)
             if not (v_prev > v_curr):
-                # Use the line number where the problematic version appears
-                line_number = getattr(curr, "line_number", None)
                 self.create_line_feedback(
                     message=f"Version order error: '{prev.version}' should be greater than '{curr.version}'",
                     rule_id=ErrorCode.CHANGELOG_VERSION_ORDER,
@@ -103,3 +101,4 @@ class ChangelogEntry(Plugin):
 
         if not errors_found:
             self.logger.info("Changelog versions are in correct order")
+        return self.feedback

@@ -30,6 +30,7 @@ ruff = "^0.15.0"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.15.0"
 pre-commit = "^4.0.0"
+mypy = "^1.15.0"
 
 [tool.poetry.scripts]
 sru-lint = "sru_lint.cli:app"
@@ -42,12 +43,12 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["__pycache__", "*.pyc"]
+extend-exclude = ["__pycache__", "*.pyc", "tmp", "venv", "dist", "find_emojis_repo.py"]
 
 [tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings  
+    "W",   # pycodestyle warnings
     "F",   # pyflakes
     "I",   # isort
     "B",   # flake8-bugbear
@@ -67,3 +68,11 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+# Mypy configuration
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["tests", "__pycache__", "venv", "tmp", "docs"]

@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from sru_lint.common.errors import ErrorCode
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -122,16 +122,6 @@ def create_source_span(
     )
 
 
-from dataclasses import dataclass
-from enum import Enum
-
-
-class Severity(Enum):
-    ERROR = "error"
-    WARNING = "warning"
-    INFO = "info"
-
-
 @dataclass
 class SourceLine:
     """Represents a single line in the source with context information."""
@@ -156,15 +146,8 @@ class SourceSpan:
     end_offset: int = 0
 
     # Content information from patch
-    content: list[SourceLine] = None  # Only added lines
-    content_with_context: list[SourceLine] = None  # Added lines + context
-
-    def __post_init__(self):
-        """Initialize content lists if not provided."""
-        if self.content is None:
-            self.content = []
-        if self.content_with_context is None:
-            self.content_with_context = []
+    content: list[SourceLine] = field(default_factory=list)  # Only added lines
+    content_with_context: list[SourceLine] = field(default_factory=list)  # Added + context
 
     @property
     def lines_added(self) -> list[SourceLine]:
@@ -182,6 +165,18 @@ class SourceSpan:
             if line.line_number == line_number:
                 return line.content
         return None
+
+    def to_dict(self) -> dict:
+        """Convert SourceSpan to a dictionary."""
+        return {
+            "path": self.path,
+            "start_line": self.start_line,
+            "start_col": self.start_col,
+            "end_line": self.end_line,
+            "end_col": self.end_col,
+            "start_offset": self.start_offset,
+            "end_offset": self.end_offset,
+        }
 
     def is_empty(self) -> bool:
         """Check if the span has no added content."""

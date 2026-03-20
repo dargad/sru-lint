@@ -5,7 +5,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from enum import Enum
+from enum import StrEnum
 
 import typer
 from rich.console import Console
@@ -20,7 +20,7 @@ from sru_lint.plugin_manager import PluginManager
 
 
 # Format options enum
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     console = "console"
     json = "json"
 
@@ -82,9 +82,12 @@ def feedback_to_dict(feedback_item):
     return result
 
 
-def process_module_list(modules: list[str]) -> list[str]:
+def process_module_list(modules: list[str] | None) -> list[str]:
     """Process comma-separated module names into a flat list."""
     logger = get_logger("cli")
+
+    if modules is None:
+        return []
 
     expanded_modules = []
     for module_item in modules:
@@ -111,13 +114,13 @@ def fetch_url_content(url: str) -> str:
 
     try:
         with urllib.request.urlopen(url, timeout=30) as response:
-            content = response.read().decode("utf-8")
+            content: str = response.read().decode("utf-8")
             logger.debug(f"Fetched {len(content)} characters from URL")
             return content
     except Exception as e:
         logger.error(f"Failed to fetch content from URL {url}: {e}")
         typer.echo(f"Error: Failed to fetch content from URL: {e}", err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
 
 
 def read_input_content(input_source: str) -> str:
@@ -143,11 +146,11 @@ def read_input_content(input_source: str) -> str:
         except FileNotFoundError:
             logger.error(f"File not found: {input_source}")
             typer.echo(f"Error: File not found: {input_source}", err=True)
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from None
         except Exception as e:
             logger.error(f"Error reading file {input_source}: {e}")
             typer.echo(f"Error reading file: {e}", err=True)
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from None
 
     return patch_content
 
@@ -200,26 +203,24 @@ def _run_single_plugin(plugin, processed_files) -> tuple[str, list[FeedbackItem]
     """Run a single plugin and return its name, feedback, and elapsed time."""
     logger = get_logger("cli")
     logger.debug(f"Running plugin: {plugin.__symbolic_name__}")
-    
+
     start_time = time.time()
-    
-    with plugin as p:
+
+    with plugin:
         plugin.process(processed_files)
-    
+
     plugin_feedback = list(plugin.feedback)  # Make a copy of feedback
     elapsed = time.time() - start_time
-    
+
     logger.debug(
         f"Plugin {plugin.__symbolic_name__} generated {len(plugin_feedback)} feedback items in {elapsed:.2f}s"
     )
-    
+
     return plugin.__symbolic_name__, plugin_feedback, elapsed
 
 
 def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[FeedbackItem]:
     """Run all plugins concurrently on the processed files and collect feedback."""
-    logger = get_logger("cli")
-
     if not plugins:
         return []
 
@@ -232,7 +233,7 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[F
                 executor.submit(_run_single_plugin, plugin, processed_files): plugin
                 for plugin in plugins
             }
-            
+
             for future in as_completed(futures):
                 plugin_name, plugin_feedback, elapsed = future.result()
                 feedback.extend(plugin_feedback)
@@ -250,24 +251,24 @@ def run_plugins(plugins, processed_files, output_format: OutputFormat) -> list[F
             task = progress.add_task(
                 f"Running plugins: 0 of {total_plugins} completed", total=total_plugins
             )
-            
+
             with ThreadPoolExecutor() as executor:
                 futures = {
                     executor.submit(_run_single_plugin, plugin, processed_files): plugin
                     for plugin in plugins
                 }
-                
+
                 completed_count = 0
                 for future in as_completed(futures):
                     plugin_name, plugin_feedback, elapsed = future.result()
                     feedback.extend(plugin_feedback)
                     completed_count += 1
-                    
+
                     # Update progress to show completion count
                     progress.update(
                         task,
                         completed=completed_count,
-                        description=f"Running plugins: {completed_count} of {total_plugins} completed"
+                        description=f"Running plugins: {completed_count} of {total_plugins} completed",
                     )
 
     return feedback
@@ -504,6 +505,10 @@ def help_cmd(
 ):
     """Show the same help text as `--help`."""
     # `ctx` here is the context of the `help` command. Its parent is the app context.
+    if ctx.parent is None:
+        typer.secho("No parent context available", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+
     if not command:
         # Root help (same as `myprog --help`)
         typer.echo(ctx.parent.get_help())
@@ -516,13 +521,21 @@ def help_cmd(
 
     for name in command:
         info_parts.append(name)
-        target = cmd.get_command(ctx.parent, name)  # click API
+        # Use getattr for click Group API compatibility
+        get_cmd = getattr(cmd, "get_command", None)
+        if get_cmd is None:
+            break
+        target = get_cmd(ctx.parent, name)
         if target is None:
             typer.secho(f"Unknown command: {' '.join(info_parts)}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2)
         cmd = target  # descend
 
     # Show help for the resolved command
+    if target is None:
+        typer.secho("No command specified", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
+
     with typer.Context(target, info_name=" ".join(info_parts), parent=ctx.parent) as subctx:
         typer.echo(target.get_help(subctx))
     raise typer.Exit()

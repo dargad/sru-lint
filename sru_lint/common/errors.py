@@ -32,6 +32,10 @@ class ErrorCode(Enum):
 
     CONTROL_MAINTAINER_NOT_UPDATED = "CTRL001"
 
+    # Dummy/test error codes
+    DUMMY_TODO = "DUMMY001"
+    DUMMY_FIXME = "DUMMY002"
+
 
 class ErrorEnumEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles Enum serialization."""

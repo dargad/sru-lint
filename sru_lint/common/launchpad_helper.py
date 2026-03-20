@@ -6,7 +6,6 @@ Uses thread-local storage for connections (httplib2 is not thread-safe).
 
 import re
 import threading
-from typing import Optional
 
 from launchpadlib.launchpad import Launchpad
 
@@ -23,7 +22,7 @@ _distributions_lock = threading.Lock()
 class LaunchpadHelper:
     """
     Helper class for Launchpad interactions.
-    
+
     Uses thread-local connections to avoid httplib2 thread-safety issues.
     Each thread gets its own Launchpad connection.
     """
@@ -36,7 +35,9 @@ class LaunchpadHelper:
     def _ensure_connection(self):
         """Ensure a Launchpad connection exists for the current thread."""
         if not hasattr(_thread_local, "launchpad"):
-            self.logger.info(f"Initializing Launchpad connection for thread {threading.current_thread().name}")
+            self.logger.info(
+                f"Initializing Launchpad connection for thread {threading.current_thread().name}"
+            )
             cachedir = "~/.launchpadlib/cache"
             _thread_local.launchpad = Launchpad.login_anonymously(
                 "sru-lint", "production", cachedir, version="devel"
@@ -169,12 +170,10 @@ class LaunchpadHelper:
             Set of valid distribution names (e.g., {'jammy', 'focal', 'jammy-proposed', ...})
         """
         global _distributions_cache
-        
+
         with _distributions_lock:
             if _distributions_cache is not None and include_pockets:
-                self.logger.debug(
-                    f"Using cached distributions ({len(_distributions_cache)} items)"
-                )
+                self.logger.debug(f"Using cached distributions ({len(_distributions_cache)} items)")
                 return _distributions_cache
 
         self._ensure_connection()
@@ -280,6 +279,7 @@ class LaunchpadHelper:
         """
         return f"https://launchpad.net/ubuntu/{distribution}/+queue?queue_state=1&queue_text={package_name}"
 
+    @staticmethod
     def get_publishing_history_url(package_name: str) -> str:
         """
         Construct the Launchpad publishing history URL for a package.
@@ -335,7 +335,7 @@ _launchpad_helper = None
 def get_launchpad_helper() -> LaunchpadHelper:
     """
     Get the global LaunchpadHelper instance.
-    
+
     Note: The helper uses thread-local connections internally,
     so it's safe to use from multiple threads.
 
