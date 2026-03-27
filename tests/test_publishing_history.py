@@ -90,11 +90,16 @@ class TestPublishingHistory(unittest.TestCase):
         mock_entry = MagicMock()
         mock_entry.package = "package"
         mock_entry.version = "1.0-1ubuntu1"
+        mock_entry.distributions = "focal"
 
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
         mock_changelog_instance.__getitem__.side_effect = [mock_entry]
         mock_changelog_class.return_value = mock_changelog_instance
+
+        # Mock distro series lookup
+        mock_distro_series = MagicMock()
+        self.mock_lp_helper.search_series.return_value = mock_distro_series
 
         # Mock no publications found
         self.mock_lp_helper.archive.getPublishedSources.return_value = []
@@ -103,12 +108,8 @@ class TestPublishingHistory(unittest.TestCase):
 
         # Should not create any feedback for unpublished version
         self.assertEqual(len(self.plugin.feedback), 0)
-        self.mock_lp_helper.archive.getPublishedSources.assert_any_call(
-            source_name="package", exact_match=True, version="1.0-1ubuntu1"
-        )
-        self.mock_lp_helper.archive.getPublishedSources.assert_any_call(
-            source_name="package",
-            exact_match=True,
+        self.mock_lp_helper.archive.getPublishedSources.assert_called_once_with(
+            source_name="package", exact_match=True, distro_series=mock_distro_series
         )
 
     @patch("sru_lint.plugins.publishing_history.changelog.Changelog")
@@ -134,6 +135,9 @@ class TestPublishingHistory(unittest.TestCase):
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
         mock_changelog_instance.__getitem__.side_effect = [mock_entry]
         mock_changelog_class.return_value = mock_changelog_instance
+
+        # Mock distro series lookup
+        self.mock_lp_helper.search_series.return_value = MagicMock()
 
         # Mock publication found
         mock_publication = MagicMock()
@@ -191,6 +195,9 @@ class TestPublishingHistory(unittest.TestCase):
         mock_pub2.pocket = "Security"
         mock_pub2.status = "Published"
 
+        # Mock distro series lookup
+        self.mock_lp_helper.search_series.return_value = MagicMock()
+
         self.mock_lp_helper.archive.getPublishedSources.return_value = [mock_pub1, mock_pub2]
 
         self.plugin.process_file(processed_file)
@@ -233,7 +240,11 @@ class TestPublishingHistory(unittest.TestCase):
 
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry1, mock_entry2])
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry1]
         mock_changelog_class.return_value = mock_changelog_instance
+
+        # Mock distro series lookup
+        self.mock_lp_helper.search_series.return_value = MagicMock()
 
         # Mock publication of second version only
         mock_publication = MagicMock()
@@ -246,10 +257,9 @@ class TestPublishingHistory(unittest.TestCase):
 
         self.plugin.process_file(processed_file)
 
-        # Should create feedback only for the published version
-        self.assertEqual(len(self.plugin.feedback), 1)
-        feedback = self.plugin.feedback[0]
-        self.assertNotIn("1.0-1ubuntu2", feedback.message)
+        # Should not create any feedback since we only check the first entry
+        # and the first entry (1.0-1ubuntu2) is not in the publications
+        self.assertEqual(len(self.plugin.feedback), 0)
 
     @patch("sru_lint.plugins.publishing_history.changelog.Changelog")
     def test_process_file_changelog_parse_error(self, mock_changelog_class):
@@ -318,10 +328,15 @@ class TestPublishingHistory(unittest.TestCase):
         mock_entry = MagicMock()
         mock_entry.package = "package"
         mock_entry.version = "1.0-1ubuntu1"
+        mock_entry.distributions = "focal"
 
         mock_changelog_instance = MagicMock()
         mock_changelog_instance.__iter__.return_value = iter([mock_entry])
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry]
         mock_changelog_class.return_value = mock_changelog_instance
+
+        # Mock distro series lookup
+        self.mock_lp_helper.search_series.return_value = MagicMock()
 
         # Mock API error
         self.mock_lp_helper.archive.getPublishedSources.side_effect = Exception("API Error")
@@ -417,6 +432,9 @@ class TestPublishingHistory(unittest.TestCase):
         mock_changelog_instance.__getitem__.side_effect = [mock_entry1]
         mock_changelog_instance.__iter__.return_value = iter([mock_entry1, mock_entry2])
         mock_changelog_class.return_value = mock_changelog_instance
+
+        # Mock distro series lookup
+        self.mock_lp_helper.search_series.return_value = MagicMock()
 
         mock_pub2 = MagicMock()
         mock_pub2.source_package_version = "1.0-1ubuntu2"

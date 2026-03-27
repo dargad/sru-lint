@@ -89,50 +89,44 @@ class PublishingHistory(Plugin):
                 self.logger.warning("Launchpad helper not available for publishing history check")
                 return
 
-            # Get published sources from Launchpad
+            # Parse distribution and version once, outside the loop
+            from debian.debian_support import Version
+
+            distro = parse_distributions_field(distribution)
+            target_distro = distro[0] if distro and len(distro) > 0 else distribution
+            target_version = Version(version_to_check)
+
+            # Get the distro series object for server-side filtering
+            distro_series = self.lp_helper.search_series(target_distro)
+
+            # Single API call with distro_series filter for better performance
             publications = self.lp_helper.archive.getPublishedSources(
-                source_name=package_name, exact_match=True, version=version_to_check
+                source_name=package_name,
+                exact_match=True,
+                distro_series=distro_series,
             )
 
             found_publications = []
             newer_publications = []
 
-            # Check each publication - should only be exact version matches now
+            # Process all publications in a single pass
             for pub in publications:
                 pub_version = pub.source_package_version
                 pub_distro = pub.distro_series.name
                 publication_info = f"{pub_distro}/{pub.pocket}/{pub.status}"
 
-                distro = parse_distributions_field(distribution)
                 # Check if this publication is for the same distribution
-                if pub_distro == (
-                    distro[0] if distro and len(distro) > 0 else distribution
-                ):  # Handle cases like 'jammy-proposed' -> 'jammy'
-                    # Since we filtered by version, this should be an exact match
-                    found_publications.append(publication_info)
-                    self.logger.info(
-                        f"✅ Found {package_name} {version_to_check} in {publication_info}"
-                    )
-
-            # Separate query for newer versions to check if there are newer publications
-            newer_publications_query = self.lp_helper.archive.getPublishedSources(
-                source_name=package_name, exact_match=True
-            )
-
-            for pub in newer_publications_query:
-                pub_version = pub.source_package_version
-                pub_distro = pub.distro_series.name
-                publication_info = f"{pub_distro}/{pub.pocket}/{pub.status}"
-
-                distro = parse_distributions_field(distribution)
-                # Check if this publication is for the same distribution
-                if pub_distro == (distro[0] if distro and len(distro) > 0 else distribution):
-                    # Check if published version is newer than the one we're checking
-                    if pub_version != version_to_check:  # Skip the exact match we already found
+                if pub_distro == target_distro:
+                    if pub_version == version_to_check:
+                        # Exact version match
+                        found_publications.append(publication_info)
+                        self.logger.info(
+                            f"✅ Found {package_name} {version_to_check} in {publication_info}"
+                        )
+                    else:
+                        # Check if published version is newer
                         try:
-                            from debian.debian_support import Version
-
-                            if Version(pub_version) > Version(version_to_check):
+                            if Version(pub_version) > target_version:
                                 newer_publications.append((pub_version, publication_info))
                                 self.logger.info(
                                     f"Found newer version {pub_version} in {publication_info}"
