@@ -3,6 +3,9 @@ title: SRU linter
 contact: dgadomski@ubuntu.com
 license: MIT
 base: core24
+platforms:
+  amd64:
+  arm64:
 summary: Static analysis tool for Ubuntu SRU (Stable Release Update) patches
 description: |
   sru-lint validates Ubuntu SRU patches by checking changelog entries, version numbers,
