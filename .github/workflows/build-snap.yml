@@ -30,7 +30,7 @@ jobs:
         uses: snapcore/action-build@v1
         id: build
         with:
-          architecture: ${{ matrix.architecture }}
+          build-for: ${{ matrix.architecture }}
 
       - uses: snapcore/action-publish@v1
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
