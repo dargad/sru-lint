@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture: [amd64, arm64]
 
     steps:
       - name: Checkout code
@@ -17,9 +20,17 @@ jobs:
           fetch-depth: 0       # get full history (needed for tags)
           fetch-tags: true     # ensure tags are fetched
 
+      - name: Set up QEMU for arm64 emulation
+        if: matrix.architecture == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build the snap
         uses: snapcore/action-build@v1
         id: build
+        with:
+          architecture: ${{ matrix.architecture }}
 
       - uses: snapcore/action-publish@v1
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -28,9 +39,9 @@ jobs:
         with:
           snap: ${{ steps.build.outputs.snap }}
           release: edge
-      
+
       - name: Upload Snap artifact
         uses: actions/upload-artifact@v7
         with:
-          name: snap
+          name: snap-${{ matrix.architecture }}
           path: ${{ steps.build.outputs.snap }}
