@@ -6,8 +6,11 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import StrEnum
+from pathlib import Path
 
 import typer
+from debian.changelog import Changelog
+from git import Repo
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
@@ -123,9 +126,45 @@ def fetch_url_content(url: str) -> str:
         raise typer.Exit(code=2) from None
 
 
+def git_debdiff(repo_path: str):
+    logger = get_logger("cli")
+
+    repo = Repo(repo_path)
+    changelog_path = "debian/changelog"
+
+    cur_ver = Changelog(open(Path(repo_path) / changelog_path)).full_version
+
+    logger.debug(f"Current version: {cur_ver}")
+
+    commit_prefix = "commit "
+    hashes = []
+    log_output = repo.git.log(changelog_path).splitlines()
+    for line in log_output:
+        if line.startswith(commit_prefix):
+            hashes.append(line[len(commit_prefix) :])
+
+    last_version_commit = hashes[0]
+    for hash in hashes:
+        commit = repo.commit(hash)
+        ch_blob = commit.tree / changelog_path
+        content = ch_blob.data_stream.read().decode("utf-8")
+        changelog = Changelog(content)
+        logger.debug(f"Compare {hash} with version {changelog.full_version}")
+        if changelog.full_version != cur_ver:
+            last_version_commit = hash
+            break
+
+    diff_range = f"{last_version_commit}..HEAD"
+    logger.debug(f"Using {diff_range} to generate debdiff")
+
+    return repo.git.diff(diff_range)
+
+
 def read_input_content(input_source: str) -> str:
     """Read patch content from input source (file path, URL, or stdin)."""
     logger = get_logger("cli")
+
+    logger.debug(f"Input source: {input_source}")
 
     if input_source == "-":
         # Read from stdin
@@ -136,6 +175,9 @@ def read_input_content(input_source: str) -> str:
         # Fetch from URL
         logger.debug(f"Fetching patch from URL: {input_source}")
         patch_content = fetch_url_content(input_source)
+    elif Path(input_source).is_dir():
+        logger.debug("Deriving debdiff from git")
+        patch_content = git_debdiff(input_source)
     else:
         # Read from file path
         logger.debug(f"Reading patch from file: {input_source}")
@@ -151,6 +193,8 @@ def read_input_content(input_source: str) -> str:
             logger.error(f"Error reading file {input_source}: {e}")
             typer.echo(f"Error reading file: {e}", err=True)
             raise typer.Exit(code=2) from None
+
+    logger.debug(f"Patch content: {patch_content}")
 
     return patch_content
 
