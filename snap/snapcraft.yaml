@@ -35,6 +35,8 @@ parts:
       - python3-pip
       - python3-poetry
       - python3-venv
+    stage-packages:
+      - git
     override-pull: |
       craftctl default
       if tag=$(git describe --tags --exact-match 2>/dev/null); then
