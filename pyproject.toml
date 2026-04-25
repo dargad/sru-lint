@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sru-lint"
-version = "0.1.1"
+version = "1.0"
 description = "A linter for Ubuntu SRU (Stable Release Update) packages"
 authors = ["Dariusz Gadomski <dgadomski@ubuntu.com>"]
 readme = "README.md"
