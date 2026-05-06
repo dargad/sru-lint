@@ -1,67 +1,72 @@
-name: Run Functional Tests
+name: sru-lint Functional tests
+
 on:
   push:
-    branches:
-      - 'main'
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
+  workflow_call:
     inputs:
-      testing_branch:
-        description: "Specify testing branch for functional tests"
-        required: true
-        default: "main"
+      source_ref:
+        description: "The git ref (branch/tag/SHA) of sru-lint to test"
+        required: false
+        type: string
+        default: ""
 
+permissions:
+  contents: read
 
 jobs:
-  get-testing-branch:
-    name: 'Extract Testing Branch'
+  test:
     runs-on: ubuntu-latest
 
-    outputs:
-      testing_branch: ${{ steps.extract_branch.outputs.testing_branch }}
-
     steps:
-      # Step 1: Check if PR data is available
-      - name: Get PR body
-        id: get_pr_body
-        if: ${{ github.event_name == 'pull_request_target' }}
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const pr_number = context.payload.pull_request.number;
-            const pr = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pr_number
-            });
-            return pr.data.body;
+    - name: Checkout sru-lint
+      uses: actions/checkout@v6
+      with:
+        repository: canonical/sru-lint
+        ref: ${{ inputs.source_ref || '' }}
 
-      # Step 2: Extract testing branch value from PR body or use dispatch input
-      - name: Extract testing branch
-        id: extract_branch
-        env:
-          PR_BODY: ${{ steps.get_pr_body.outputs.result }}
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request_target" ]; then
-            # Extract testing branch from PR body if triggered by PR
-            # look for FUNC-TEST-BRANCH: branch_name, if not found use "main"
-            testing_branch=$(printf "%s" "$PR_BODY" | grep -oP 'FUNC-TEST-BRANCH:\s*\K\S+' || echo "main")
-            # make sure all whitespace and special chars are removed
-            testing_branch=$(echo "$testing_branch" | tr -d '\r\n"' | xargs)
-          else
-            # Use the workflow_dispatch input as the testing_branch
-            testing_branch="${{ github.event.inputs.testing_branch }}"
-          fi
-          echo "Testing branch: $testing_branch"
-          echo "testing_branch=$testing_branch" >> $GITHUB_OUTPUT
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
 
-  run-tests:
-    name: 'Run Functional Tests'
-    needs: get-testing-branch
-    uses: canonical/seg-testing/.github/workflows/functional_tests_sru_lint.yml@main
-    secrets: inherit
-    permissions:
-      contents: read
-    with:
-      version: ${{ needs.get-testing-branch.outputs.testing_branch }}
-      source_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - name: Build and install sru-lint
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build
+        python -m build
+        python -m pip install dist/*.whl
+
+    - name: Install test dependencies
+      run: |
+        pip install pytest pytest-html
+        if [ -f test-requirements.txt ]; then pip install -r test-requirements.txt; fi
+
+    - name: Run sru-lint tests
+      run: |
+        mkdir -p logs
+        TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+        pytest tests/functional_tests/ \
+          --html=logs/${TIMESTAMP}_sru_lint_report.html \
+          --self-contained-html \
+          --capture=no \
+          -o log_cli=true \
+          -o log_cli_level=INFO \
+          -v
+
+    - name: Upload Test Report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: sru-lint-test-report
+        path: ./logs/*report.html
+
+    - name: Upload Generated Debdiffs
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: sru-lint-generated-debdiffs
+        path: tests/functional_tests/generated_debdiffs/

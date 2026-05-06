@@ -59,6 +59,7 @@ coverage.xml
 *.lcov
 hypothesis/
 .pytest_cache/
+logs*
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
