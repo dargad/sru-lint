@@ -39,6 +39,7 @@ class UCAPlugin(Plugin):
 
         self.check_version_suffix(source_span, version)
         self.check_distribution(source_span, str(cl.distributions))
+        self.check_bug_targeting(source_span, cl, str(cl.distributions))
 
     def check_version_suffix(self, source_span, version: str) -> None:
         """Ensure the version ends in ~cloudN where N is a non-negative integer."""
@@ -85,3 +86,39 @@ class UCAPlugin(Plugin):
             target_line_content=distribution,
             doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES,
         )
+
+    def check_bug_targeting(self, source_span, cl, distribution: str) -> None:
+        """Ensure LP bugs are targeted at cloud-archive/<openstack-release>."""
+        if "-" not in distribution:
+            return
+        _, _, openstack = distribution.rpartition("-")
+        if not openstack:
+            return
+
+        lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
+        for lpbug in lpbugs:
+            has_project, has_series = self.lp_helper.get_uca_bug_targeting(
+                lpbug, openstack
+            )
+            if not has_project:
+                self.create_line_feedback(
+                    message=(
+                        f"Bug LP: #{lpbug} has no task on the cloud-archive "
+                        f"Launchpad project"
+                    ),
+                    rule_id=ErrorCode.UCA_BUG_NOT_TARGETED,
+                    severity=Severity.WARNING,
+                    source_span=source_span,
+                    target_line_content=f"LP: #{lpbug}",
+                )
+            elif not has_series:
+                self.create_line_feedback(
+                    message=(
+                        f"Bug LP: #{lpbug} has no task for "
+                        f"cloud-archive/{openstack}"
+                    ),
+                    rule_id=ErrorCode.UCA_BUG_SERIES_NOT_TARGETED,
+                    severity=Severity.WARNING,
+                    source_span=source_span,
+                    target_line_content=f"LP: #{lpbug}",
+                )

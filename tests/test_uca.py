@@ -51,6 +51,9 @@ class TestUCAPlugin(unittest.TestCase):
     def setUp(self):
         self.plugin = UCAPlugin()
         self.mock_lp_helper = MagicMock()
+        # Default: no LP bugs in the changelog and valid bug targeting if asked.
+        self.mock_lp_helper.extract_lp_bugs.return_value = []
+        self.mock_lp_helper.get_uca_bug_targeting.return_value = (True, True)
         self.plugin.lp_helper = self.mock_lp_helper
         self.plugin.feedback = []
 
@@ -157,6 +160,51 @@ class TestUCAPlugin(unittest.TestCase):
         self.plugin.process_file(processed_file)
         self.assertEqual(len(self.plugin.feedback), 0)
         self.mock_lp_helper.is_valid_uca_distribution.assert_not_called()
+
+    def test_bug_targeting_valid(self):
+        """Bug targeted at cloud-archive/<openstack> produces no feedback."""
+        self.mock_lp_helper.is_valid_uca_distribution.return_value = (True, None)
+        self.mock_lp_helper.extract_lp_bugs.return_value = [2141119]
+        self.mock_lp_helper.get_uca_bug_targeting.return_value = (True, True)
+        processed_file = create_test_processed_file(
+            "debian/changelog",
+            make_changelog("1.0-1ubuntu1~cloud0", "noble-epoxy"),
+        )
+        self.plugin.process_file(processed_file)
+        self.mock_lp_helper.get_uca_bug_targeting.assert_called_once_with(2141119, "epoxy")
+        self.assertEqual(len(self.plugin.feedback), 0)
+
+    def test_bug_not_targeted_at_cloud_archive(self):
+        """No task on cloud-archive at all -> UCA_BUG_NOT_TARGETED."""
+        self.mock_lp_helper.is_valid_uca_distribution.return_value = (True, None)
+        self.mock_lp_helper.extract_lp_bugs.return_value = [2141119]
+        self.mock_lp_helper.get_uca_bug_targeting.return_value = (False, False)
+        processed_file = create_test_processed_file(
+            "debian/changelog",
+            make_changelog("1.0-1ubuntu1~cloud0", "noble-epoxy"),
+        )
+        self.plugin.process_file(processed_file)
+        self.assertEqual(len(self.plugin.feedback), 1)
+        feedback = self.plugin.feedback[0]
+        self.assertEqual(feedback.rule_id, ErrorCode.UCA_BUG_NOT_TARGETED)
+        self.assertEqual(feedback.severity, Severity.WARNING)
+        self.assertIn("2141119", feedback.message)
+
+    def test_bug_targeted_but_series_missing(self):
+        """Project task exists but not for the series -> UCA_BUG_SERIES_NOT_TARGETED."""
+        self.mock_lp_helper.is_valid_uca_distribution.return_value = (True, None)
+        self.mock_lp_helper.extract_lp_bugs.return_value = [2141119]
+        self.mock_lp_helper.get_uca_bug_targeting.return_value = (True, False)
+        processed_file = create_test_processed_file(
+            "debian/changelog",
+            make_changelog("1.0-1ubuntu1~cloud0", "noble-epoxy"),
+        )
+        self.plugin.process_file(processed_file)
+        self.assertEqual(len(self.plugin.feedback), 1)
+        feedback = self.plugin.feedback[0]
+        self.assertEqual(feedback.rule_id, ErrorCode.UCA_BUG_SERIES_NOT_TARGETED)
+        self.assertEqual(feedback.severity, Severity.WARNING)
+        self.assertIn("cloud-archive/epoxy", feedback.message)
 
 
 if __name__ == "__main__":

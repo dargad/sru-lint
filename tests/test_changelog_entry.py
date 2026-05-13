@@ -107,6 +107,29 @@ class TestChangelogEntry(unittest.TestCase):
         ]
         self.assertEqual(len(invalid_distro), 0)
 
+    def test_process_file_uca_suppresses_bug_targeting_check(self):
+        """For UCA debdiffs ChangelogEntry must not run is_bug_targeted."""
+        changelog_content = [
+            "package (1.0-1ubuntu1~cloud0) noble-epoxy; urgency=medium",
+            "",
+            "  * UCA upload LP: #2141119",
+            "",
+            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000",
+        ]
+        processed_file = create_test_processed_file("debian/changelog", changelog_content)
+
+        self.mock_lp_helper.extract_lp_bugs.return_value = [2141119]
+        self.mock_lp_helper.is_bug_targeted.return_value = False
+
+        self.plugin.process_file(processed_file)
+
+        self.mock_lp_helper.is_bug_targeted.assert_not_called()
+        bug_warnings = [
+            f for f in self.plugin.feedback
+            if f.rule_id == ErrorCode.CHANGELOG_BUG_NOT_TARGETED
+        ]
+        self.assertEqual(len(bug_warnings), 0)
+
     def test_process_file_invalid_distribution(self):
         """Test processing changelog with invalid distribution"""
         changelog_content = [

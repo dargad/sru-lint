@@ -124,6 +124,58 @@ class LaunchpadHelper:
         self.logger.debug(f"Bug #{bug_number} is NOT targeted at {package} in {distribution}")
         return False
 
+    def get_uca_bug_targeting(
+        self, bug_number: int, openstack_release: str
+    ) -> tuple[bool, bool]:
+        """
+        Determine whether a bug is targeted at the ``cloud-archive`` Launchpad
+        project, and whether a task exists for the specific OpenStack series.
+
+        Args:
+            bug_number: The Launchpad bug number.
+            openstack_release: The OpenStack release name (e.g. ``'epoxy'``).
+
+        Returns:
+            ``(has_project_task, has_series_task)`` where ``has_project_task``
+            is True if any task is on the cloud-archive project (or one of
+            its series), and ``has_series_task`` is True if a task exists for
+            ``cloud-archive/<openstack_release>`` specifically.
+        """
+        bug = self.get_bug(bug_number)
+        if not bug:
+            return (False, False)
+
+        has_project = False
+        has_series = False
+
+        for task in bug.bug_tasks:
+            target = task.target
+            try:
+                project = getattr(target, "project", None)
+                if project is not None and getattr(project, "name", "") == "cloud-archive":
+                    has_project = True
+                    if getattr(target, "name", "") == openstack_release:
+                        has_series = True
+                    continue
+            except Exception as e:
+                self.logger.debug(
+                    f"Could not inspect task target as cloud-archive series: {e}"
+                )
+
+            try:
+                if getattr(target, "name", "") == "cloud-archive":
+                    has_project = True
+            except Exception as e:
+                self.logger.debug(
+                    f"Could not inspect task target as cloud-archive project: {e}"
+                )
+
+        self.logger.debug(
+            f"Bug #{bug_number} UCA targeting: "
+            f"project={has_project}, series({openstack_release})={has_series}"
+        )
+        return (has_project, has_series)
+
     def get_bug_tasks(self, bug_number: int) -> list:
         """
         Get all bug tasks for a bug.

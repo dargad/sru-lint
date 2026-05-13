@@ -34,33 +34,35 @@ class ChangelogEntry(Plugin):
             try:
                 cl = changelog.Changelog(added_content)
 
-                # Check distribution validity. UCAPlugin owns this check for
+                # UCAPlugin owns distribution and bug-targeting checks for
                 # Ubuntu Cloud Archive uploads (identified by ~cloudN suffix).
                 version = str(cl.version) if cl.version is not None else ""
-                if not UCA_VERSION_SUFFIX_RE.search(version):
-                    if not self.check_distribution(cl.distributions):
-                        self.create_line_feedback(
-                            message=f"Invalid distribution '{cl.distributions}'",
-                            rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
-                            severity=Severity.ERROR,
-                            source_span=source_span,
-                            target_line_content=str(cl.distributions),
-                            doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES,
-                        )
+                is_uca = bool(UCA_VERSION_SUFFIX_RE.search(version))
 
-                # Check LP bugs
-                lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
-                for lpbug in lpbugs:
-                    if not self.lp_helper.is_bug_targeted(
-                        lpbug, cl.get_package(), cl.distributions
-                    ):
-                        self.create_line_feedback(
-                            message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
-                            rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
-                            severity=Severity.WARNING,
-                            source_span=source_span,
-                            target_line_content=f"LP: #{lpbug}",
-                        )
+                if not is_uca and not self.check_distribution(cl.distributions):
+                    self.create_line_feedback(
+                        message=f"Invalid distribution '{cl.distributions}'",
+                        rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
+                        severity=Severity.ERROR,
+                        source_span=source_span,
+                        target_line_content=str(cl.distributions),
+                        doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES,
+                    )
+
+                # Check LP bugs (UCAPlugin handles this for UCA debdiffs)
+                if not is_uca:
+                    lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
+                    for lpbug in lpbugs:
+                        if not self.lp_helper.is_bug_targeted(
+                            lpbug, cl.get_package(), cl.distributions
+                        ):
+                            self.create_line_feedback(
+                                message=f"Bug LP: #{lpbug} is not targeted at {cl.get_package()} and {cl.distributions}",
+                                rule_id=ErrorCode.CHANGELOG_BUG_NOT_TARGETED,
+                                severity=Severity.WARNING,
+                                source_span=source_span,
+                                target_line_content=f"LP: #{lpbug}",
+                            )
 
             except Exception as e:
                 self.logger.error(f"Failed to parse changelog: {e}")
