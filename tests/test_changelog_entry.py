@@ -361,6 +361,41 @@ class TestChangelogEntry(unittest.TestCase):
         # Should not create any feedback for correct order
         self.assertEqual(len(self.plugin.feedback), 0)
 
+    def test_check_version_order_uca_pair_skipped(self):
+        """A UCA entry on top of its archive base must not trip the order check."""
+        header_uca = MagicMock()
+        header_uca.version = "1:16.0.0-0ubuntu1~cloud1"
+        header_base = MagicMock()
+        header_base.version = "1:16.0.0-0ubuntu1"
+        headers = [header_uca, header_base]
+
+        processed_file = create_test_processed_file(
+            "debian/changelog", ["uca header", "base header"]
+        )
+
+        self.plugin.check_version_order(processed_file, headers)
+
+        self.assertEqual(len(self.plugin.feedback), 0)
+
+    def test_check_version_order_uca_unrelated_base_still_checked(self):
+        """A UCA entry on top of an unrelated older version still gets checked."""
+        header_uca = MagicMock()
+        header_uca.version = "1:15.0.0-0ubuntu1~cloud1"
+        header_other = MagicMock()
+        header_other.version = "1:16.0.0-0ubuntu1"
+        headers = [header_uca, header_other]
+
+        processed_file = create_test_processed_file(
+            "debian/changelog", ["uca header", "other header"]
+        )
+
+        self.plugin.check_version_order(processed_file, headers)
+
+        self.assertEqual(len(self.plugin.feedback), 1)
+        self.assertEqual(
+            self.plugin.feedback[0].rule_id, ErrorCode.CHANGELOG_VERSION_ORDER
+        )
+
     def test_check_version_order_multiple_incorrect(self):
         """Test version order checking with multiple incorrect pairs"""
         header1 = MagicMock()

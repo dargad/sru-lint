@@ -90,6 +90,17 @@ class ChangelogEntry(Plugin):
         errors_found = False
 
         for prev, curr in zip(headers, headers[1:], strict=False):
+            # A UCA version 'X~cloudN' is intentionally less than its archive
+            # base 'X' (the tilde sorts below nothing) so UCA uploads do not
+            # supersede archive packages. Don't flag that specific pair.
+            m = UCA_VERSION_SUFFIX_RE.search(prev.version)
+            if m and prev.version[: m.start()] == curr.version:
+                self.logger.debug(
+                    f"Skipping version order check for UCA pair: "
+                    f"{prev.version} -> {curr.version}"
+                )
+                continue
+
             v_prev = Version(prev.version)
             v_curr = Version(curr.version)
             if not (v_prev > v_curr):
