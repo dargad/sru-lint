@@ -6,6 +6,7 @@ from sru_lint.common.doc_links import DocLinks
 from sru_lint.common.errors import ErrorCode
 from sru_lint.common.feedback import FeedbackItem, Severity
 from sru_lint.plugins.plugin_base import Plugin
+from sru_lint.plugins.uca import UCA_VERSION_SUFFIX_RE
 
 
 class ChangelogEntry(Plugin):
@@ -33,16 +34,19 @@ class ChangelogEntry(Plugin):
             try:
                 cl = changelog.Changelog(added_content)
 
-                # Check distribution validity
-                if not self.check_distribution(cl.distributions):
-                    self.create_line_feedback(
-                        message=f"Invalid distribution '{cl.distributions}'",
-                        rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
-                        severity=Severity.ERROR,
-                        source_span=source_span,
-                        target_line_content=str(cl.distributions),
-                        doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES,
-                    )
+                # Check distribution validity. UCAPlugin owns this check for
+                # Ubuntu Cloud Archive uploads (identified by ~cloudN suffix).
+                version = str(cl.version) if cl.version is not None else ""
+                if not UCA_VERSION_SUFFIX_RE.search(version):
+                    if not self.check_distribution(cl.distributions):
+                        self.create_line_feedback(
+                            message=f"Invalid distribution '{cl.distributions}'",
+                            rule_id=ErrorCode.CHANGELOG_INVALID_DISTRIBUTION,
+                            severity=Severity.ERROR,
+                            source_span=source_span,
+                            target_line_content=str(cl.distributions),
+                            doc_url=DocLinks.LIST_OF_UBUNTU_RELEASES,
+                        )
 
                 # Check LP bugs
                 lpbugs = self.lp_helper.extract_lp_bugs(str(cl))

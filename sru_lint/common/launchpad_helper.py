@@ -9,6 +9,7 @@ import threading
 
 from launchpadlib.launchpad import Launchpad
 
+from sru_lint.common.errors import ErrorCode
 from sru_lint.common.logging import get_logger
 
 # Thread-local storage for Launchpad connections
@@ -17,6 +18,10 @@ _thread_local = threading.local()
 # Shared cache for valid distributions (protected by lock)
 _distributions_cache: set[str] | None = None
 _distributions_lock = threading.Lock()
+
+# Shared cache for UCA pairings (series -> set of openstack release names)
+_uca_pairings_cache: dict[str, set[str]] | None = None
+_uca_pairings_lock = threading.Lock()
 
 
 class LaunchpadHelper:
@@ -248,6 +253,107 @@ class LaunchpadHelper:
         is_valid = distribution in valid_distributions
         self.logger.debug(f"Distribution '{distribution}' is {'valid' if is_valid else 'invalid'}")
         return is_valid
+
+    def get_uca_pairings(self) -> dict[str, set[str]]:
+        """
+        Get the mapping of Ubuntu series -> valid OpenStack releases for the
+        Ubuntu Cloud Archive.
+
+        Queries the ~ubuntu-cloud-archive team's PPAs. PPA names follow the
+        pattern <openstack-release> or <openstack-release>-staging; the
+        Ubuntu series is inferred from each PPA's published sources.
+        Results are cached for the lifetime of the process.
+
+        Returns:
+            Dict like {'jammy': {'antelope', 'bobcat', 'caracal'}, ...}
+        """
+        global _uca_pairings_cache
+
+        with _uca_pairings_lock:
+            if _uca_pairings_cache is not None:
+                self.logger.debug(
+                    f"Using cached UCA pairings ({len(_uca_pairings_cache)} series)"
+                )
+                return _uca_pairings_cache
+
+        self._ensure_connection()
+        self.logger.info("Fetching UCA pairings from Launchpad")
+
+        pairings: dict[str, set[str]] = {}
+        try:
+            team = _thread_local.launchpad.people["ubuntu-cloud-archive"]
+            for ppa in team.ppas:
+                ppa_name = ppa.name
+                openstack = ppa_name
+                for suffix in ("-staging", "-proposed"):
+                    if openstack.endswith(suffix):
+                        openstack = openstack[: -len(suffix)]
+                        break
+                if not openstack or not openstack.isalpha():
+                    continue
+                try:
+                    for pub in ppa.getPublishedSources(status="Published"):
+                        series_name = pub.distro_series.name
+                        pairings.setdefault(series_name, set()).add(openstack)
+                        break
+                except Exception as e:
+                    self.logger.debug(
+                        f"Could not determine series for PPA '{ppa_name}': {e}"
+                    )
+                    continue
+
+            with _uca_pairings_lock:
+                _uca_pairings_cache = pairings
+
+            self.logger.info(
+                f"Fetched UCA pairings for {len(pairings)} series "
+                f"({sum(len(v) for v in pairings.values())} pockets)"
+            )
+        except Exception as e:
+            self.logger.error(f"Error fetching UCA pairings: {e}")
+            self.logger.warning("Using fallback UCA pairings list")
+            pairings = {
+                "focal": {"ussuri", "victoria", "wallaby", "xena", "yoga"},
+                "jammy": {"yoga", "zed", "antelope", "bobcat", "caracal"},
+                "noble": {"caracal", "dalmatian", "epoxy"},
+            }
+
+        return pairings
+
+    def is_valid_uca_distribution(
+        self, distribution: str
+    ) -> tuple[bool, ErrorCode | None]:
+        """
+        Validate that a distribution string matches a real Ubuntu Cloud
+        Archive pocket of the form <ubuntu-series>-<openstack-release>.
+
+        Args:
+            distribution: The distribution name (e.g., 'jammy-caracal')
+
+        Returns:
+            (True, None) if valid.
+            (False, UCA_INVALID_DISTRIBUTION) if the shape or series is wrong.
+            (False, UCA_UNKNOWN_OPENSTACK_RELEASE) if the OpenStack name is
+                not known in any UCA pairing.
+            (False, UCA_INVALID_PAIRING) if both halves are known but do not
+                pair together.
+        """
+        if not distribution or "-" not in distribution:
+            return False, ErrorCode.UCA_INVALID_DISTRIBUTION
+        series, _, openstack = distribution.rpartition("-")
+        if not series or not openstack:
+            return False, ErrorCode.UCA_INVALID_DISTRIBUTION
+
+        pairings = self.get_uca_pairings()
+        all_openstack = {os_name for s in pairings.values() for os_name in s}
+
+        if series not in pairings:
+            return False, ErrorCode.UCA_INVALID_DISTRIBUTION
+        if openstack not in all_openstack:
+            return False, ErrorCode.UCA_UNKNOWN_OPENSTACK_RELEASE
+        if openstack not in pairings[series]:
+            return False, ErrorCode.UCA_INVALID_PAIRING
+        return True, None
 
     @staticmethod
     def extract_lp_bugs(text: str) -> list[int]:

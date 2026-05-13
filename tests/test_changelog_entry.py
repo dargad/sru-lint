@@ -84,6 +84,29 @@ class TestChangelogEntry(unittest.TestCase):
         # Should not create any feedback for valid changelog
         self.assertEqual(len(self.plugin.feedback), 0)
 
+    def test_process_file_uca_suppresses_distribution_check(self):
+        """A ~cloudN version means UCAPlugin owns the distro check; skip it here."""
+        changelog_content = [
+            "package (1.0-1ubuntu1~cloud0) jammy-caracal; urgency=medium",
+            "",
+            "  * UCA upload",
+            "",
+            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000",
+        ]
+        processed_file = create_test_processed_file("debian/changelog", changelog_content)
+
+        self.mock_lp_helper.is_valid_distribution.return_value = False
+        self.mock_lp_helper.extract_lp_bugs.return_value = []
+
+        self.plugin.process_file(processed_file)
+
+        self.mock_lp_helper.is_valid_distribution.assert_not_called()
+        invalid_distro = [
+            f for f in self.plugin.feedback
+            if f.rule_id == ErrorCode.CHANGELOG_INVALID_DISTRIBUTION
+        ]
+        self.assertEqual(len(invalid_distro), 0)
+
     def test_process_file_invalid_distribution(self):
         """Test processing changelog with invalid distribution"""
         changelog_content = [
