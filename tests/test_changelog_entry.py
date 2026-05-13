@@ -102,8 +102,7 @@ class TestChangelogEntry(unittest.TestCase):
 
         self.mock_lp_helper.is_valid_distribution.assert_not_called()
         invalid_distro = [
-            f for f in self.plugin.feedback
-            if f.rule_id == ErrorCode.CHANGELOG_INVALID_DISTRIBUTION
+            f for f in self.plugin.feedback if f.rule_id == ErrorCode.CHANGELOG_INVALID_DISTRIBUTION
         ]
         self.assertEqual(len(invalid_distro), 0)
 
@@ -125,8 +124,7 @@ class TestChangelogEntry(unittest.TestCase):
 
         self.mock_lp_helper.is_bug_targeted.assert_not_called()
         bug_warnings = [
-            f for f in self.plugin.feedback
-            if f.rule_id == ErrorCode.CHANGELOG_BUG_NOT_TARGETED
+            f for f in self.plugin.feedback if f.rule_id == ErrorCode.CHANGELOG_BUG_NOT_TARGETED
         ]
         self.assertEqual(len(bug_warnings), 0)
 
@@ -415,9 +413,7 @@ class TestChangelogEntry(unittest.TestCase):
         self.plugin.check_version_order(processed_file, headers)
 
         self.assertEqual(len(self.plugin.feedback), 1)
-        self.assertEqual(
-            self.plugin.feedback[0].rule_id, ErrorCode.CHANGELOG_VERSION_ORDER
-        )
+        self.assertEqual(self.plugin.feedback[0].rule_id, ErrorCode.CHANGELOG_VERSION_ORDER)
 
     def test_check_version_order_multiple_incorrect(self):
         """Test version order checking with multiple incorrect pairs"""

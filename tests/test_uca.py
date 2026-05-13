@@ -135,9 +135,7 @@ class TestUCAPlugin(unittest.TestCase):
         )
         self.plugin.process_file(processed_file)
         self.assertEqual(len(self.plugin.feedback), 1)
-        self.assertEqual(
-            self.plugin.feedback[0].rule_id, ErrorCode.UCA_INVALID_DISTRIBUTION
-        )
+        self.assertEqual(self.plugin.feedback[0].rule_id, ErrorCode.UCA_INVALID_DISTRIBUTION)
 
     def test_malformed_cloud_suffix(self):
         """A version with '~cloud' but no trailing digits fails the suffix check."""
@@ -148,8 +146,7 @@ class TestUCAPlugin(unittest.TestCase):
         )
         self.plugin.process_file(processed_file)
         suffix_errors = [
-            f for f in self.plugin.feedback
-            if f.rule_id == ErrorCode.UCA_INVALID_VERSION_SUFFIX
+            f for f in self.plugin.feedback if f.rule_id == ErrorCode.UCA_INVALID_VERSION_SUFFIX
         ]
         self.assertEqual(len(suffix_errors), 1)
 

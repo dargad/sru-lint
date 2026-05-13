@@ -124,9 +124,7 @@ class LaunchpadHelper:
         self.logger.debug(f"Bug #{bug_number} is NOT targeted at {package} in {distribution}")
         return False
 
-    def get_uca_bug_targeting(
-        self, bug_number: int, openstack_release: str
-    ) -> tuple[bool, bool]:
+    def get_uca_bug_targeting(self, bug_number: int, openstack_release: str) -> tuple[bool, bool]:
         """
         Determine whether a bug is targeted at the ``cloud-archive`` Launchpad
         project, and whether a task exists for the specific OpenStack series.
@@ -158,17 +156,13 @@ class LaunchpadHelper:
                         has_series = True
                     continue
             except Exception as e:
-                self.logger.debug(
-                    f"Could not inspect task target as cloud-archive series: {e}"
-                )
+                self.logger.debug(f"Could not inspect task target as cloud-archive series: {e}")
 
             try:
                 if getattr(target, "name", "") == "cloud-archive":
                     has_project = True
             except Exception as e:
-                self.logger.debug(
-                    f"Could not inspect task target as cloud-archive project: {e}"
-                )
+                self.logger.debug(f"Could not inspect task target as cloud-archive project: {e}")
 
         self.logger.debug(
             f"Bug #{bug_number} UCA targeting: "
@@ -323,9 +317,7 @@ class LaunchpadHelper:
 
         with _uca_pairings_lock:
             if _uca_pairings_cache is not None:
-                self.logger.debug(
-                    f"Using cached UCA pairings ({len(_uca_pairings_cache)} series)"
-                )
+                self.logger.debug(f"Using cached UCA pairings ({len(_uca_pairings_cache)} series)")
                 return _uca_pairings_cache
 
         self._ensure_connection()
@@ -349,9 +341,7 @@ class LaunchpadHelper:
                         pairings.setdefault(series_name, set()).add(openstack)
                         break
                 except Exception as e:
-                    self.logger.debug(
-                        f"Could not determine series for PPA '{ppa_name}': {e}"
-                    )
+                    self.logger.debug(f"Could not determine series for PPA '{ppa_name}': {e}")
                     continue
 
             with _uca_pairings_lock:
@@ -372,9 +362,7 @@ class LaunchpadHelper:
 
         return pairings
 
-    def is_valid_uca_distribution(
-        self, distribution: str
-    ) -> tuple[bool, ErrorCode | None]:
+    def is_valid_uca_distribution(self, distribution: str) -> tuple[bool, ErrorCode | None]:
         """
         Validate that a distribution string matches a real Ubuntu Cloud
         Archive pocket of the form <ubuntu-series>-<openstack-release>.

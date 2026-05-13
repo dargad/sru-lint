@@ -32,9 +32,7 @@ class UCAPlugin(Plugin):
 
         version = str(cl.version) if cl.version is not None else ""
         if "~cloud" not in version:
-            self.logger.debug(
-                f"Version '{version}' has no ~cloud suffix; not a UCA debdiff"
-            )
+            self.logger.debug(f"Version '{version}' has no ~cloud suffix; not a UCA debdiff")
             return
 
         self.check_version_suffix(source_span, version)
@@ -47,8 +45,7 @@ class UCAPlugin(Plugin):
             return
         self.create_line_feedback(
             message=(
-                f"UCA version '{version}' must end in '~cloudN' "
-                f"where N is a non-negative integer"
+                f"UCA version '{version}' must end in '~cloudN' where N is a non-negative integer"
             ),
             rule_id=ErrorCode.UCA_INVALID_VERSION_SUFFIX,
             severity=Severity.ERROR,
@@ -64,9 +61,7 @@ class UCAPlugin(Plugin):
             return
 
         if reason == ErrorCode.UCA_UNKNOWN_OPENSTACK_RELEASE:
-            message = (
-                f"Unknown OpenStack release in UCA distribution '{distribution}'"
-            )
+            message = f"Unknown OpenStack release in UCA distribution '{distribution}'"
         elif reason == ErrorCode.UCA_INVALID_PAIRING:
             message = (
                 f"UCA distribution '{distribution}' is not a valid "
@@ -97,14 +92,11 @@ class UCAPlugin(Plugin):
 
         lpbugs = self.lp_helper.extract_lp_bugs(str(cl))
         for lpbug in lpbugs:
-            has_project, has_series = self.lp_helper.get_uca_bug_targeting(
-                lpbug, openstack
-            )
+            has_project, has_series = self.lp_helper.get_uca_bug_targeting(lpbug, openstack)
             if not has_project:
                 self.create_line_feedback(
                     message=(
-                        f"Bug LP: #{lpbug} has no task on the cloud-archive "
-                        f"Launchpad project"
+                        f"Bug LP: #{lpbug} has no task on the cloud-archive Launchpad project"
                     ),
                     rule_id=ErrorCode.UCA_BUG_NOT_TARGETED,
                     severity=Severity.WARNING,
@@ -113,10 +105,7 @@ class UCAPlugin(Plugin):
                 )
             elif not has_series:
                 self.create_line_feedback(
-                    message=(
-                        f"Bug LP: #{lpbug} has no task for "
-                        f"cloud-archive/{openstack}"
-                    ),
+                    message=(f"Bug LP: #{lpbug} has no task for cloud-archive/{openstack}"),
                     rule_id=ErrorCode.UCA_BUG_SERIES_NOT_TARGETED,
                     severity=Severity.WARNING,
                     source_span=source_span,

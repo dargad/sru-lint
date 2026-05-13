@@ -98,8 +98,7 @@ class ChangelogEntry(Plugin):
             m = UCA_VERSION_SUFFIX_RE.search(prev.version)
             if m and prev.version[: m.start()] == curr.version:
                 self.logger.debug(
-                    f"Skipping version order check for UCA pair: "
-                    f"{prev.version} -> {curr.version}"
+                    f"Skipping version order check for UCA pair: {prev.version} -> {curr.version}"
                 )
                 continue
 
