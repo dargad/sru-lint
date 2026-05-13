@@ -113,6 +113,35 @@ class TestPublishingHistory(unittest.TestCase):
         )
 
     @patch("sru_lint.plugins.publishing_history.changelog.Changelog")
+    def test_process_file_uca_upload_skipped(self, mock_changelog_class):
+        """A ~cloudN version is a UCA upload; the main-archive check must be skipped."""
+        changelog_content = [
+            "package (1:16.0.0-0ubuntu1~cloud1) noble-epoxy; urgency=medium",
+            "",
+            "  * UCA upload",
+            "",
+            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000",
+        ]
+
+        processed_file = create_test_processed_file("debian/changelog", changelog_content)
+
+        mock_entry = MagicMock()
+        mock_entry.package = "package"
+        mock_entry.version = "1:16.0.0-0ubuntu1~cloud1"
+        mock_entry.distributions = "noble-epoxy"
+
+        mock_changelog_instance = MagicMock()
+        mock_changelog_instance.__iter__.return_value = iter([mock_entry])
+        mock_changelog_instance.__getitem__.side_effect = [mock_entry]
+        mock_changelog_class.return_value = mock_changelog_instance
+
+        self.plugin.process_file(processed_file)
+
+        self.mock_lp_helper.search_series.assert_not_called()
+        self.mock_lp_helper.archive.getPublishedSources.assert_not_called()
+        self.assertEqual(len(self.plugin.feedback), 0)
+
+    @patch("sru_lint.plugins.publishing_history.changelog.Changelog")
     def test_process_file_already_published_version(self, mock_changelog_class):
         """Test processing changelog with already published version"""
         changelog_content = [

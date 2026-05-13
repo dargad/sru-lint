@@ -84,6 +84,50 @@ class TestChangelogEntry(unittest.TestCase):
         # Should not create any feedback for valid changelog
         self.assertEqual(len(self.plugin.feedback), 0)
 
+    def test_process_file_uca_suppresses_distribution_check(self):
+        """A ~cloudN version means UCAPlugin owns the distro check; skip it here."""
+        changelog_content = [
+            "package (1.0-1ubuntu1~cloud0) jammy-caracal; urgency=medium",
+            "",
+            "  * UCA upload",
+            "",
+            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000",
+        ]
+        processed_file = create_test_processed_file("debian/changelog", changelog_content)
+
+        self.mock_lp_helper.is_valid_distribution.return_value = False
+        self.mock_lp_helper.extract_lp_bugs.return_value = []
+
+        self.plugin.process_file(processed_file)
+
+        self.mock_lp_helper.is_valid_distribution.assert_not_called()
+        invalid_distro = [
+            f for f in self.plugin.feedback if f.rule_id == ErrorCode.CHANGELOG_INVALID_DISTRIBUTION
+        ]
+        self.assertEqual(len(invalid_distro), 0)
+
+    def test_process_file_uca_suppresses_bug_targeting_check(self):
+        """For UCA debdiffs ChangelogEntry must not run is_bug_targeted."""
+        changelog_content = [
+            "package (1.0-1ubuntu1~cloud0) noble-epoxy; urgency=medium",
+            "",
+            "  * UCA upload LP: #2141119",
+            "",
+            " -- Author <author@example.com>  Mon, 01 Jan 2024 12:00:00 +0000",
+        ]
+        processed_file = create_test_processed_file("debian/changelog", changelog_content)
+
+        self.mock_lp_helper.extract_lp_bugs.return_value = [2141119]
+        self.mock_lp_helper.is_bug_targeted.return_value = False
+
+        self.plugin.process_file(processed_file)
+
+        self.mock_lp_helper.is_bug_targeted.assert_not_called()
+        bug_warnings = [
+            f for f in self.plugin.feedback if f.rule_id == ErrorCode.CHANGELOG_BUG_NOT_TARGETED
+        ]
+        self.assertEqual(len(bug_warnings), 0)
+
     def test_process_file_invalid_distribution(self):
         """Test processing changelog with invalid distribution"""
         changelog_content = [
@@ -337,6 +381,39 @@ class TestChangelogEntry(unittest.TestCase):
 
         # Should not create any feedback for correct order
         self.assertEqual(len(self.plugin.feedback), 0)
+
+    def test_check_version_order_uca_pair_skipped(self):
+        """A UCA entry on top of its archive base must not trip the order check."""
+        header_uca = MagicMock()
+        header_uca.version = "1:16.0.0-0ubuntu1~cloud1"
+        header_base = MagicMock()
+        header_base.version = "1:16.0.0-0ubuntu1"
+        headers = [header_uca, header_base]
+
+        processed_file = create_test_processed_file(
+            "debian/changelog", ["uca header", "base header"]
+        )
+
+        self.plugin.check_version_order(processed_file, headers)
+
+        self.assertEqual(len(self.plugin.feedback), 0)
+
+    def test_check_version_order_uca_unrelated_base_still_checked(self):
+        """A UCA entry on top of an unrelated older version still gets checked."""
+        header_uca = MagicMock()
+        header_uca.version = "1:15.0.0-0ubuntu1~cloud1"
+        header_other = MagicMock()
+        header_other.version = "1:16.0.0-0ubuntu1"
+        headers = [header_uca, header_other]
+
+        processed_file = create_test_processed_file(
+            "debian/changelog", ["uca header", "other header"]
+        )
+
+        self.plugin.check_version_order(processed_file, headers)
+
+        self.assertEqual(len(self.plugin.feedback), 1)
+        self.assertEqual(self.plugin.feedback[0].rule_id, ErrorCode.CHANGELOG_VERSION_ORDER)
 
     def test_check_version_order_multiple_incorrect(self):
         """Test version order checking with multiple incorrect pairs"""
