@@ -6,6 +6,7 @@ from sru_lint.common.launchpad_helper import LaunchpadHelper
 from sru_lint.common.logging import get_logger
 from sru_lint.common.parse import UNRELEASED_DISTRIBUTION, parse_distributions_field
 from sru_lint.plugins.plugin_base import Plugin
+from sru_lint.plugins.uca import UCA_VERSION_SUFFIX_RE
 
 
 class PublishingHistory(Plugin):
@@ -46,6 +47,16 @@ class PublishingHistory(Plugin):
             package_name = entry.package
             version_to_check = entry.version
             distribution = entry.distributions
+
+            # UCA uploads aren't published in Ubuntu's main archive; querying
+            # by the UCA distribution name (e.g. 'noble-epoxy') 404s in
+            # search_series. Skip the check for UCA debdiffs.
+            if UCA_VERSION_SUFFIX_RE.search(str(version_to_check)):
+                self.logger.debug(
+                    f"Skipping publishing-history check for UCA upload: "
+                    f"{package_name} {version_to_check}"
+                )
+                return
 
             if distribution != UNRELEASED_DISTRIBUTION:
                 self.logger.debug(
